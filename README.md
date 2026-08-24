@@ -35,6 +35,7 @@ Default ROCm targets:
 | `gfx1101` | Radeon RX 7800 XT / RX 7700 XT |
 | `gfx1150` | Selected Ryzen AI 300 APUs |
 | `gfx1151` | Selected Ryzen AI Max APUs |
+| `gfx1201` | Radeon AI PRO R9700 (RDNA 4) |
 
 Confirm the exact target for your GPU against AMD's current compatibility documentation. Windows ROCm support is narrower than Linux ROCm support.
 
@@ -59,7 +60,7 @@ Optionally restrict the compiled CUDA architectures:
 Prerequisites: CMake, GNU Make, and AMD's Windows ROCm/HIP SDK (or TheRock ROCm wheels). Activate the toolchain and ensure `HIP_PATH` points to its root, then run:
 
 ```powershell
-.\scripts\Build-Rocm.ps1 -GpuTarget gfx1100
+.\scripts\Build-Rocm.ps1 -GpuTarget gfx1201
 ```
 
 The GitHub workflow uses the same TheRock wheel-based environment as upstream `llama.cpp` CI.

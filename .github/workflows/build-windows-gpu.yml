@@ -15,13 +15,14 @@ on:
       rocm_target:
         description: AMD GPU target (used by the ROCm job)
         required: true
-        default: gfx1100
+        default: gfx1201
         type: choice
         options:
           - gfx1100
           - gfx1101
           - gfx1150
           - gfx1151
+          - gfx1201
 permissions:
   contents: read
 
