@@ -87,6 +87,36 @@ Developer PowerShell for Visual Studioから実行します。
 
 GitHub Actionsでは、公式`llama.cpp` CIと同じTheRock wheelベースの環境を使用します。
 
+### ROCmでGPU推論を有効にする
+
+ROCm 7.14のWindowsパッケージでは、`hipblas.dll`、`rocblas.dll`などの実行時DLLはllama.cppのZIPに含まれません。実行PCへR9700（`gfx1201`）対応のROCm/TheRock 7.14をインストールし、`C:\TheRock\build\bin`をPATHに追加する必要があります。
+
+ROCm版ZIPには、実行時DLLを確認してPATHを一時設定する`Run-Rocm.ps1`を同梱します。まずGPUが認識されることを確認します。
+
+```powershell
+.\Run-Rocm.ps1 -Executable llama-cli.exe -- --list-devices
+```
+
+モデルをGPUへオフロードして実行するには、`-ngl`を指定します。`-ngl 99`は、可能な限りすべてのレイヤーをGPUへ配置します。
+
+```powershell
+.\Run-Rocm.ps1 -Executable llama-cli.exe -- -m C:\models\model.gguf -ngl 99
+```
+
+ベンチマーク結果の`backend`列が`ROCm`になっていることも確認できます。
+
+```powershell
+.\Run-Rocm.ps1 -Executable llama-bench.exe -- -m C:\models\model.gguf -ngl 99 -p 128 -n 128
+```
+
+ROCmを別の場所へインストールした場合は、`-RocmRoot`で指定します。
+
+```powershell
+.\Run-Rocm.ps1 -RocmRoot D:\ROCm -Executable llama-cli.exe -- --list-devices
+```
+
+`--list-devices`にR9700が表示されない場合は、AMDドライバー、ROCm 7.14のインストール、および`gfx1201`版ZIPを確認してください。公式の[Windows ROCm導入ガイド](https://github.com/ggml-org/llama.cpp/discussions/27047)も参照してください。
+
 ## ツールチェーンのバージョン更新
 
 CUDAとROCmのバージョンは、`.github/workflows/build-windows-gpu.yml`のトップレベルにある`env`ブロックで一元管理しています。

@@ -35,9 +35,10 @@ if (-not (Test-Path $clang) -or -not (Test-Path $clangxx)) {
     -DGGML_HIP=ON `
     -DGGML_CUDA_NO_PEER_COPY=ON `
     -DGGML_HIP_NO_VMM=ON `
+    -DGGML_HIP_ROCWMMA_FATTN=ON `
     -DGGML_NATIVE=OFF `
     -DGGML_BACKEND_DL=ON `
-    "-DGPU_TARGETS=$GpuTarget"
+    "-DAMDGPU_TARGETS=$GpuTarget"
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed ($LASTEXITCODE)." }
 & cmake --build $build --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw "CMake build failed ($LASTEXITCODE)." }

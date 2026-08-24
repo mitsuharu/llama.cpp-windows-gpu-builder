@@ -231,10 +231,11 @@ jobs:
             -DGGML_HIP=ON `
             -DGGML_CUDA_NO_PEER_COPY=ON `
             -DGGML_HIP_NO_VMM=ON `
+            -DGGML_HIP_ROCWMMA_FATTN=ON `
             -DGGML_NATIVE=OFF `
             -DGGML_BACKEND_DL=ON `
             -DLLAMA_BUILD_BORINGSSL=ON `
-            "-DGPU_TARGETS=${env:GPU_TARGET}"
+            "-DAMDGPU_TARGETS=${env:GPU_TARGET}"
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
           cmake --build build-rocm --parallel $env:NUMBER_OF_PROCESSORS
           if ($LASTEXITCODE -ne 0) { throw "CMake build failed: $LASTEXITCODE" }
@@ -245,6 +246,14 @@ jobs:
           if (-not (Test-Path 'build-rocm/bin/ggml-hip.dll')) {
             throw 'ggml-hip.dll was not produced.'
           }
+          $configuredTarget = Select-String -Path 'build-rocm/CMakeCache.txt' -Pattern "AMDGPU_TARGETS:.*=${env:GPU_TARGET}$"
+          if (-not $configuredTarget) {
+            throw "ROCm target ${env:GPU_TARGET} was not recorded in CMakeCache.txt."
+          }
+
+      - name: Add ROCm launcher to package
+        shell: pwsh
+        run: Copy-Item ./scripts/Run-Rocm.ps1 ./build-rocm/bin/Run-Rocm.ps1
 
       - name: Create ROCm package
         shell: pwsh
