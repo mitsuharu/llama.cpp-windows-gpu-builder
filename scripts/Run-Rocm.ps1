@@ -1,4 +1,4 @@
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string] $Executable = 'llama-cli.exe',
     [string] $RocmRoot = $(if ($env:HIP_PATH) { $env:HIP_PATH } else { 'C:\TheRock\build' }),
@@ -19,8 +19,12 @@ if (-not (Test-Path $rocmBin)) {
     throw "ROCm runtime directory not found: $rocmBin. Install ROCm/TheRock 7.14 for Windows and set HIP_PATH or use -RocmRoot."
 }
 
-$requiredDlls = @('amdhip64.dll', 'hipblas.dll', 'rocblas.dll', 'rocsolver.dll')
+$requiredDlls = @('hipblas.dll', 'rocblas.dll', 'rocsolver.dll')
 $missingDlls = $requiredDlls | Where-Object { -not (Test-Path (Join-Path $rocmBin $_)) }
+$hipRuntimeDlls = @('amdhip64.dll', 'amdhip64_7.dll')
+if (-not ($hipRuntimeDlls | Where-Object { Test-Path (Join-Path $rocmBin $_) })) {
+    $missingDlls = @($missingDlls) + ($hipRuntimeDlls -join ' or ')
+}
 if ($missingDlls) {
     throw "Required ROCm runtime DLLs are missing from '$rocmBin': $($missingDlls -join ', ')"
 }
