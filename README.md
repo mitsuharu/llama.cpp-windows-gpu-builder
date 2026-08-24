@@ -37,6 +37,18 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。
 
+### GitHub Releaseへの公開
+
+ビルド済みZIPを[Releases](https://github.com/mitsuharu/llama.cpp-windows-gpu-builder/releases)にも添付する場合は、手動実行時に`publish_release`を有効にします。
+
+- `release_tag`が空欄の場合は、`build-<llama.cppバージョン>-<実行番号>.<再実行番号>`形式の重複しないタグを生成します。
+- `release_tag`を指定し、そのReleaseが存在しない場合は、新しいReleaseを作成します。
+- 指定したReleaseがすでに存在する場合は、そのReleaseへZIPを追加します。同名Assetがすでに存在する場合は上書きせずエラーになります。
+- CUDA／ROCmの両方をビルドした場合は、両方のZIPを同じReleaseへ添付します。
+- ビルドが失敗またはキャンセルされた場合は、Releaseを作成しません。
+
+Release作成には`GITHUB_TOKEN`の`contents: write`権限を使用します。リポジトリの**Settings > Actions > General > Workflow permissions**で、ワークフローからの書き込みが許可されていることを確認してください。
+
 選択可能なROCmターゲットは次のとおりです。
 
 | ターゲット | 主な対応ハードウェア |
