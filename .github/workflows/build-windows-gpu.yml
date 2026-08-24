@@ -12,6 +12,7 @@ on:
           - all
           - cuda
           - rocm
+          - vulkan
       llama_source:
         description: llama.cpp source type
         required: true
@@ -55,10 +56,12 @@ permissions:
 # 1. Update the value here only.
 # 2. CUDA: verify vendor/llama.cpp/.github/actions/windows-setup-cuda supports it.
 # 3. ROCm: verify the version exists at https://repo.amd.com/rocm/whl-multi-arch/.
-# 4. Run the corresponding backend manually and verify its DLL and ZIP artifact.
+# 4. Vulkan: verify the version exists at https://vulkan.lunarg.com/sdk/home#windows.
+# 5. Run the corresponding backend manually and verify its DLL and ZIP artifact.
 env:
   CUDA_VERSION: '12.4'
   ROCM_VERSION: '7.14.0'
+  VULKAN_VERSION: '1.4.357.0'
 
 concurrency:
   group: windows-gpu-${{ github.ref }}
@@ -266,23 +269,117 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  vulkan:
+    if: inputs.backend == 'all' || inputs.backend == 'vulkan'
+    runs-on: windows-2022
+    timeout-minutes: 120
+    outputs:
+      llama_ref: ${{ steps.llama-source.outputs.ref }}
+    steps:
+      - name: Checkout with pinned llama.cpp
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Select llama.cpp source
+        id: llama-source
+        shell: pwsh
+        env:
+          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_TAG: ${{ inputs.llama_tag }}
+        run: |
+          $tag = $env:LLAMA_TAG.Trim()
+          switch ($env:LLAMA_SOURCE) {
+            'release' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Release $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 }
+            }
+            'nightly' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Nightly $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 -LatestNightly }
+            }
+            'latest-branch' {
+              if ($tag) { throw 'llama_tag must be empty when latest-branch is selected.' }
+              ./scripts/Update-LlamaCpp.ps1 -LatestBranch
+            }
+            default { throw "Unsupported llama_source: $env:LLAMA_SOURCE" }
+          }
+          $selectedRef = git -C vendor/llama.cpp describe --tags --exact-match HEAD 2>$null
+          if (-not $selectedRef) {
+            $shortSha = git -C vendor/llama.cpp rev-parse --short=12 HEAD
+            $selectedRef = "master-$shortSha"
+          }
+          "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
+          "ref=$selectedRef" >> $env:GITHUB_OUTPUT
+
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Join-Path $env:RUNNER_TEMP 'VulkanSDK-Installer.exe'
+          $url = "https://sdk.lunarg.com/sdk/download/${env:VULKAN_VERSION}/windows/vulkansdk-windows-X64-${env:VULKAN_VERSION}.exe"
+          curl.exe -fL -o $installer $url
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK download failed: $LASTEXITCODE" }
+          & $installer --accept-licenses --default-answer --confirm-command install
+          if ($LASTEXITCODE -ne 0) { throw "Vulkan SDK installation failed: $LASTEXITCODE" }
+          $sdkPath = "C:\VulkanSDK\${env:VULKAN_VERSION}"
+          "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
+          "$sdkPath\bin" >> $env:GITHUB_PATH
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
+      - name: Build Vulkan
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S vendor/llama.cpp -B build-vulkan -G "Ninja Multi-Config" ^
+            -DGGML_VULKAN=ON ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_BACKEND_DL=ON ^
+            -DLLAMA_BUILD_BORINGSSL=ON
+          cmake --build build-vulkan --config Release -j %NUMBER_OF_PROCESSORS%
+
+      - name: Verify Vulkan backend
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'build-vulkan/bin/Release/ggml-vulkan.dll')) {
+            throw 'ggml-vulkan.dll was not produced.'
+          }
+          if (-not (Select-String -Path 'build-vulkan/CMakeCache.txt' -Pattern '^GGML_VULKAN:BOOL=ON$')) {
+            throw 'GGML_VULKAN=ON was not recorded in CMakeCache.txt.'
+          }
+
+      - name: Create Vulkan package
+        shell: pwsh
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-vulkan -Name "llama-${env:LLAMA_REF}-win-x64-vulkan-${env:VULKAN_VERSION}"
+
+      - name: Upload Vulkan package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: llama-${{ env.LLAMA_REF }}-win-x64-vulkan-${{ env.VULKAN_VERSION }}
+          path: dist/*.zip
+          if-no-files-found: error
+
   release:
     name: Publish GitHub Release
-    needs: [cuda, rocm]
+    needs: [cuda, rocm, vulkan]
     if: >-
       always() &&
       inputs.publish_release &&
       !cancelled() &&
-      (needs.cuda.result == 'success' || needs.rocm.result == 'success') &&
+      (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.vulkan.result == 'success') &&
       needs.cuda.result != 'failure' &&
-      needs.rocm.result != 'failure'
+      needs.rocm.result != 'failure' &&
+      needs.vulkan.result != 'failure'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref }}
+      LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref || needs.vulkan.outputs.llama_ref }}
       REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
       - name: Download successful build artifacts
@@ -313,5 +410,5 @@ jobs:
             gh release create "$release_tag" "${assets[@]}" \
               --target "$GITHUB_SHA" \
               --title "llama.cpp ${LLAMA_REF} Windows GPU build" \
-              --notes "Windows GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA: ${CUDA_VERSION}; ROCm: ${ROCM_VERSION}. Peer copy is disabled."
+              --notes "Windows GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA: ${CUDA_VERSION}; ROCm: ${ROCM_VERSION}; Vulkan SDK: ${VULKAN_VERSION}. Peer copy is disabled in CUDA/ROCm builds."
           fi

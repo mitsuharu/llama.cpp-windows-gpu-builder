@@ -1,6 +1,6 @@
 # llama.cpp Windows GPU Builder
 
-NVIDIA CUDAおよびAMD ROCm/HIPに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。どちらのバックエンドも`GGML_CUDA_NO_PEER_COPY=ON`を指定してビルドします。
+NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAとROCmでは`GGML_CUDA_NO_PEER_COPY=ON`を指定してビルドします。
 
 `llama.cpp`のソースコードはGit submoduleとして特定のコミットに固定しています。GitHub Actionsは使い捨てのWindows runner上にツールチェーンを準備し、バイナリをビルドしてZIP形式のArtifactをアップロードします。ローカルで隔離されたビルド環境が必要な場合は、Windows VMまたはWindows Sandboxを利用できます。WSL/DockerのCUDA・ROCmコンテナで生成されるのはLinuxバイナリであり、Windowsネイティブバイナリではありません。
 
@@ -21,9 +21,10 @@ git submodule update --init --recursive
 
 GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**を開き、ビルド対象を選択します。
 
-- `all`: CUDAと、選択したROCmターゲットの両方をビルド
+- `all`: CUDA、選択したROCmターゲット、およびVulkanをビルド
 - `cuda`: ワークフローに設定されたCUDAバージョンをビルド
 - `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド
+- `vulkan`: ワークフローに設定されたVulkan SDKで、GPUメーカー共通のVulkan版をビルド
 
 `llama_source`では、使用する`llama.cpp`の種類を選択します。
 
@@ -44,7 +45,7 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 - `release_tag`が空欄の場合は、`build-<llama.cppバージョン>-<実行番号>.<再実行番号>`形式の重複しないタグを生成します。
 - `release_tag`を指定し、そのReleaseが存在しない場合は、新しいReleaseを作成します。
 - 指定したReleaseがすでに存在する場合は、そのReleaseへZIPを追加します。同名Assetがすでに存在する場合は上書きせずエラーになります。
-- CUDA／ROCmの両方をビルドした場合は、両方のZIPを同じReleaseへ添付します。
+- 複数のバックエンドをビルドした場合は、成功した各ZIPを同じReleaseへ添付します。
 - ビルドが失敗またはキャンセルされた場合は、Releaseを作成しません。
 
 Release作成には`GITHUB_TOKEN`の`contents: write`権限を使用します。リポジトリの**Settings > Actions > General > Workflow permissions**で、ワークフローからの書き込みが許可されていることを確認してください。
@@ -117,14 +118,35 @@ ROCmを別の場所へインストールした場合は、`-RocmRoot`で指定�
 
 `--list-devices`にR9700が表示されない場合は、AMDドライバー、ROCm 7.14のインストール、および`gfx1201`版ZIPを確認してください。公式の[Windows ROCm導入ガイド](https://github.com/ggml-org/llama.cpp/discussions/27047)も参照してください。
 
+## ローカルでのVulkanビルド
+
+必要な環境は、**C++によるデスクトップ開発**を含むVisual Studio 2022 Build Tools、CMake、Ninja、および[LunarG Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows)です。Vulkan SDKのインストール後、新しいDeveloper PowerShell for Visual Studioから実行します。
+
+```powershell
+.\scripts\Build-Vulkan.ps1
+```
+
+ビルド後は、Vulkan対応ドライバーがインストールされたPCでデバイスを確認できます。R9700だけでなく、対応するNVIDIA・Intel GPUでも同じZIPを利用できます。
+
+```powershell
+.\build-vulkan\bin\Release\llama-cli.exe --list-devices
+```
+
+モデルをGPUへオフロードする場合は、CUDA/ROCmと同様に`-ngl`を指定します。
+
+```powershell
+.\build-vulkan\bin\Release\llama-cli.exe -m C:\models\model.gguf -ngl 99
+```
+
 ## ツールチェーンのバージョン更新
 
-CUDAとROCmのバージョンは、`.github/workflows/build-windows-gpu.yml`のトップレベルにある`env`ブロックで一元管理しています。
+CUDA、ROCm、Vulkan SDKのバージョンは、`.github/workflows/build-windows-gpu.yml`のトップレベルにある`env`ブロックで一元管理しています。
 
 ```yaml
 env:
   CUDA_VERSION: '12.4'
   ROCM_VERSION: '7.14.0'
+  VULKAN_VERSION: '1.4.357.0'
 ```
 
 ツールチェーンを更新する場合は、次の手順を実施します。
@@ -132,7 +154,8 @@ env:
 1. トップレベルの`env`ブロックにある該当バージョンだけを変更します。
 2. CUDAの場合は、`vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml`に新しいバージョンのインストール処理が存在することを確認します。必要であれば、先に`llama.cpp` submoduleを更新します。
 3. ROCmの場合は、AMDの`rocm/whl-multi-arch`パッケージインデックスで対象バージョンが公開されていることを確認します。
-4. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。
+4. Vulkanの場合は、LunarGのWindows SDKダウンロードページで対象バージョンが公開されていることを確認します。
+5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。
 
 各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理とArtifact名は、トップレベルの共有変数を自動的に参照します。
 
