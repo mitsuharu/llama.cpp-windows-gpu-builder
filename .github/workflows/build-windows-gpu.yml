@@ -272,6 +272,7 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref }}
       REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
