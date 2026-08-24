@@ -12,6 +12,20 @@ on:
           - all
           - cuda
           - rocm
+      llama_source:
+        description: llama.cpp source type
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - nightly
+          - latest-branch
+      llama_tag:
+        description: Optional tag (vX.Y.Z for release, bNNNNN for nightly; empty selects latest)
+        required: false
+        default: ''
+        type: string
       rocm_target:
         description: AMD GPU target (used by the ROCm job)
         required: true
@@ -51,6 +65,35 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Select llama.cpp source
+        shell: pwsh
+        env:
+          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_TAG: ${{ inputs.llama_tag }}
+        run: |
+          $tag = $env:LLAMA_TAG.Trim()
+          switch ($env:LLAMA_SOURCE) {
+            'release' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Release $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 }
+            }
+            'nightly' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Nightly $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 -LatestNightly }
+            }
+            'latest-branch' {
+              if ($tag) { throw 'llama_tag must be empty when latest-branch is selected.' }
+              ./scripts/Update-LlamaCpp.ps1 -LatestBranch
+            }
+            default { throw "Unsupported llama_source: $env:LLAMA_SOURCE" }
+          }
+          $selectedRef = git -C vendor/llama.cpp describe --tags --exact-match HEAD 2>$null
+          if (-not $selectedRef) {
+            $shortSha = git -C vendor/llama.cpp rev-parse --short=12 HEAD
+            $selectedRef = "master-$shortSha"
+          }
+          "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
+
       - name: Set up CUDA
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-cuda
         with:
@@ -83,12 +126,12 @@ jobs:
 
       - name: Create CUDA package
         shell: pwsh
-        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-win-x64-cuda-${env:CUDA_VERSION}-no-peer-copy"
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-no-peer-copy"
 
       - name: Upload CUDA package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: llama-win-x64-cuda-${{ env.CUDA_VERSION }}-no-peer-copy
+          name: llama-${{ env.LLAMA_REF }}-win-x64-cuda-${{ env.CUDA_VERSION }}-no-peer-copy
           path: dist/*.zip
           if-no-files-found: error
 
@@ -103,6 +146,35 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      - name: Select llama.cpp source
+        shell: pwsh
+        env:
+          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_TAG: ${{ inputs.llama_tag }}
+        run: |
+          $tag = $env:LLAMA_TAG.Trim()
+          switch ($env:LLAMA_SOURCE) {
+            'release' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Release $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 }
+            }
+            'nightly' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Nightly $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 -LatestNightly }
+            }
+            'latest-branch' {
+              if ($tag) { throw 'llama_tag must be empty when latest-branch is selected.' }
+              ./scripts/Update-LlamaCpp.ps1 -LatestBranch
+            }
+            default { throw "Unsupported llama_source: $env:LLAMA_SOURCE" }
+          }
+          $selectedRef = git -C vendor/llama.cpp describe --tags --exact-match HEAD 2>$null
+          if (-not $selectedRef) {
+            $shortSha = git -C vendor/llama.cpp rev-parse --short=12 HEAD
+            $selectedRef = "master-$shortSha"
+          }
+          "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
 
       - name: Set up ROCm
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-rocm
@@ -158,11 +230,11 @@ jobs:
 
       - name: Create ROCm package
         shell: pwsh
-        run: ./scripts/Package-Build.ps1 -BuildDir ./build-rocm -Name "llama-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-rocm -Name "llama-${env:LLAMA_REF}-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
 
       - name: Upload ROCm package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: llama-win-x64-rocm-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-no-peer-copy
+          name: llama-${{ env.LLAMA_REF }}-win-x64-rocm-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-no-peer-copy
           path: dist/*.zip
           if-no-files-found: error

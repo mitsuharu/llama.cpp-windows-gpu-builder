@@ -19,13 +19,23 @@ git submodule update --init --recursive
 
 ## GitHub Actions
 
-GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**を開き、次のいずれかを選択します。
+GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**を開き、ビルド対象を選択します。
 
 - `all`: CUDAと、選択したROCmターゲットの両方をビルド
 - `cuda`: ワークフローに設定されたCUDAバージョンをビルド
 - `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド
 
-ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。
+`llama_source`では、使用する`llama.cpp`の種類を選択します。
+
+| `llama_source` | `llama_tag`未入力時 | `llama_tag`入力例 |
+| --- | --- | --- |
+| `release` | 最新の安定版を自動選択 | `v0.2.0` |
+| `nightly` | 最新のnightly/dev版を自動選択 | `b10603` |
+| `latest-branch` | `origin/master`の最新コミット | 入力不可 |
+
+`llama_tag`は任意です。指定した種類とタグ形式が一致しない場合や、`latest-branch`を選択してタグも入力した場合は、ビルドを開始せずエラーになります。
+
+ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。
 
 選択可能なROCmターゲットは次のとおりです。
 
@@ -92,11 +102,51 @@ env:
 
 ## llama.cppの更新
 
+更新スクリプトは、引数を指定しない場合に`v0.2.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
+
 ```powershell
-git -C vendor/llama.cpp fetch origin master
-git -C vendor/llama.cpp checkout origin/master
+.\scripts\Update-LlamaCpp.ps1
+```
+
+特定の安定版リリースを使用する場合は、[llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases)に掲載されている`vX.Y.Z`形式のタグを`-Release`で指定します。
+
+```powershell
+.\scripts\Update-LlamaCpp.ps1 -Release v0.2.0
+```
+
+`b10603`のようなnightly/dev版を使用する場合は、安定版と区別するため`-Nightly`で指定します。
+
+```powershell
+.\scripts\Update-LlamaCpp.ps1 -Nightly b10603
+```
+
+最新のnightly/dev版を自動選択する場合は、`-LatestNightly`を指定します。
+
+```powershell
+.\scripts\Update-LlamaCpp.ps1 -LatestNightly
+```
+
+リリース前の変更を含む`origin/master`の最新コミットを使用する場合は、`-LatestBranch`を明示します。
+
+```powershell
+.\scripts\Update-LlamaCpp.ps1 -LatestBranch
+```
+
+`-Release`、`-Nightly`、`-LatestNightly`、`-LatestBranch`は同時に指定できません。存在しないタグや、それぞれの形式に一致しない値を指定すると、submoduleは変更されずエラーになります。また、submodule内に未コミットの変更がある場合も更新を中止します。
+
+更新したバージョンを親リポジトリに記録して共有するには、続けて次を実行します。
+
+```powershell
 git add vendor/llama.cpp
-git commit -m "chore: update llama.cpp"
+git commit -m "Update llama.cpp submodule"
+git push
+```
+
+現在固定されているバージョンは次のコマンドで確認できます。
+
+```powershell
+git submodule status
+git -C vendor/llama.cpp log -1 --oneline
 ```
 
 ## ライセンス
