@@ -38,6 +38,8 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。
 
+ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub Actionsのキャッシュへ保存します。同じROCmバージョン、GPUターゲット、`llama.cpp`コミット、およびビルド設定で再実行した場合、SDKのダウンロード・展開と変更のないソースの再コンパイルを省略します。バージョンやビルド設定が変わるとキャッシュキーも変わるため、古い生成物は使用されません。
+
 ### GitHub Releaseへの公開
 
 ビルド済みZIPを[Releases](https://github.com/mitsuharu/llama.cpp-windows-gpu-builder/releases)にも添付する場合は、手動実行時に`publish_release`を有効にします。
@@ -90,9 +92,9 @@ GitHub Actionsでは、公式`llama.cpp` CIと同じTheRock wheelベースの環
 
 ### ROCmでGPU推論を有効にする
 
-ROCm 7.14のWindowsパッケージでは、`hipblas.dll`、`rocblas.dll`などの実行時DLLはllama.cppのZIPに含まれません。実行PCへR9700（`gfx1201`）対応のROCm/TheRock 7.14をインストールし、`C:\TheRock\build\bin`をPATHに追加する必要があります。
+ROCm版ZIPには、`hipblas.dll`、`rocblas.dll`などの実行時DLL、間接依存DLL、および`rocblas\library`のGPUカーネルを同梱します。実行PCにROCm SDKをインストールしたりPATHを設定したりする必要はありません。対応するAMD GPUドライバーは別途必要です。
 
-ROCm版ZIPには、実行時DLLを確認してPATHを一時設定する`Run-Rocm.ps1`を同梱します。まずGPUが認識されることを確認します。
+ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する`Run-Rocm.ps1`も含まれます。まずGPUが認識されることを確認します。
 
 ```powershell
 .\Run-Rocm.ps1 -Executable llama-cli.exe -- --list-devices
@@ -110,7 +112,7 @@ ROCm版ZIPには、実行時DLLを確認してPATHを一時設定する`Run-Rocm
 .\Run-Rocm.ps1 -Executable llama-bench.exe -- -m C:\models\model.gguf -ngl 99 -p 128 -n 128
 ```
 
-ROCmを別の場所へインストールした場合は、`-RocmRoot`で指定します。
+同梱版の代わりに別のROCmインストールを使う場合は、`-RocmRoot`で指定します。
 
 ```powershell
 .\Run-Rocm.ps1 -RocmRoot D:\ROCm -Executable llama-cli.exe -- --list-devices
@@ -155,7 +157,7 @@ env:
 2. CUDAの場合は、`vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml`に新しいバージョンのインストール処理が存在することを確認します。必要であれば、先に`llama.cpp` submoduleを更新します。
 3. ROCmの場合は、AMDの`rocm/whl-multi-arch`パッケージインデックスで対象バージョンが公開されていることを確認します。
 4. Vulkanの場合は、LunarGのWindows SDKダウンロードページで対象バージョンが公開されていることを確認します。
-5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。
+5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。ROCm版では依存DLL、`rocblas\library`、ライセンスもZIPに含まれることを確認します。
 
 各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理とArtifact名は、トップレベルの共有変数を自動的に参照します。
 
