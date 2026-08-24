@@ -1,0 +1,160 @@
+name: Build Windows GPU binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Backend to build
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - cuda
+          - rocm
+      rocm_target:
+        description: AMD GPU target (used by the ROCm job)
+        required: true
+        default: gfx1100
+        type: choice
+        options:
+          - gfx1100
+          - gfx1101
+          - gfx1150
+          - gfx1151
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-gpu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cuda:
+    if: inputs.backend == 'all' || inputs.backend == 'cuda'
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CUDA_VERSION: '12.4'
+    steps:
+      - name: Checkout with pinned llama.cpp
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up CUDA
+        uses: ./vendor/llama.cpp/.github/actions/windows-setup-cuda
+        with:
+          cuda_version: ${{ env.CUDA_VERSION }}
+          cuda_arch: x64
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
+      - name: Build CUDA with peer copy disabled
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S vendor/llama.cpp -B build-cuda -G "Ninja Multi-Config" ^
+            -DGGML_CUDA=ON ^
+            -DGGML_CUDA_NO_PEER_COPY=ON ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_BACKEND_DL=ON ^
+            -DLLAMA_BUILD_BORINGSSL=ON ^
+            -DGGML_CUDA_CUB_3DOT2=ON
+          cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
+
+      - name: Verify CUDA backend
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'build-cuda/bin/Release/ggml-cuda.dll')) {
+            throw 'ggml-cuda.dll was not produced.'
+          }
+
+      - name: Create CUDA package
+        shell: pwsh
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-win-x64-cuda-${env:CUDA_VERSION}-no-peer-copy"
+
+      - name: Upload CUDA package
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-win-x64-cuda-${{ env.CUDA_VERSION }}-no-peer-copy
+          path: dist/*.zip
+          if-no-files-found: error
+
+  rocm:
+    if: inputs.backend == 'all' || inputs.backend == 'rocm'
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      ROCM_VERSION: '7.14.0'
+      GPU_TARGET: ${{ inputs.rocm_target }}
+    steps:
+      - name: Checkout with pinned llama.cpp
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set up ROCm
+        uses: ./vendor/llama.cpp/.github/actions/windows-setup-rocm
+        with:
+          version: ${{ env.ROCM_VERSION }}
+
+      - name: Export ROCm environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & C:\TheRock\build\.venv\Scripts\Activate.ps1
+          rocm-sdk init
+          if ($LASTEXITCODE -ne 0) { throw "rocm-sdk init failed: $LASTEXITCODE" }
+          $rocmPath = (rocm-sdk path --root).Trim()
+          $cmakePath = (rocm-sdk path --cmake).Trim()
+          $binPath = (rocm-sdk path --bin).Trim()
+          "HIP_PATH=$rocmPath" >> $env:GITHUB_ENV
+          "CMAKE_PREFIX_PATH=$cmakePath" >> $env:GITHUB_ENV
+          "HIP_DEVICE_LIB_PATH=$rocmPath\lib\llvm\amdgcn\bitcode" >> $env:GITHUB_ENV
+          'HIP_PLATFORM=amd' >> $env:GITHUB_ENV
+          "LLVM_PATH=$rocmPath\lib\llvm" >> $env:GITHUB_ENV
+          $binPath >> $env:GITHUB_PATH
+          'C:\TheRock\build\.venv\Scripts' >> $env:GITHUB_PATH
+
+      - name: Build ROCm with peer copy disabled
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S vendor/llama.cpp -B build-rocm -G 'Unix Makefiles' `
+            -DCMAKE_BUILD_TYPE=Release `
+            "-DCMAKE_PREFIX_PATH=${env:HIP_PATH}" `
+            "-DCMAKE_C_COMPILER=${env:HIP_PATH}\lib\llvm\bin\clang.exe" `
+            "-DCMAKE_CXX_COMPILER=${env:HIP_PATH}\lib\llvm\bin\clang++.exe" `
+            "-DCMAKE_HIP_COMPILER=${env:HIP_PATH}\lib\llvm\bin\clang.exe" `
+            "-DHIP_PATH=${env:HIP_PATH}" `
+            -DGGML_HIP=ON `
+            -DGGML_CUDA_NO_PEER_COPY=ON `
+            -DGGML_HIP_NO_VMM=ON `
+            -DGGML_NATIVE=OFF `
+            -DGGML_BACKEND_DL=ON `
+            -DLLAMA_BUILD_BORINGSSL=ON `
+            "-DGPU_TARGETS=${env:GPU_TARGET}"
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
+          cmake --build build-rocm --parallel $env:NUMBER_OF_PROCESSORS
+          if ($LASTEXITCODE -ne 0) { throw "CMake build failed: $LASTEXITCODE" }
+
+      - name: Verify ROCm backend
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'build-rocm/bin/ggml-hip.dll')) {
+            throw 'ggml-hip.dll was not produced.'
+          }
+
+      - name: Create ROCm package
+        shell: pwsh
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-rocm -Name "llama-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
+
+      - name: Upload ROCm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-win-x64-rocm-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-no-peer-copy
+          path: dist/*.zip
+          if-no-files-found: error
