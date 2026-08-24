@@ -22,7 +22,13 @@ if ($changes) {
     throw 'The llama.cpp submodule has uncommitted changes. Commit or stash them before updating.'
 }
 
-if (@($Release, $Nightly, $(if ($LatestNightly) { 'LatestNightly' }), $(if ($LatestBranch) { 'LatestBranch' })).Where({ $_ }).Count -gt 1) {
+$selectorCount = 0
+if ($Release) { $selectorCount++ }
+if ($Nightly) { $selectorCount++ }
+if ($LatestNightly.IsPresent) { $selectorCount++ }
+if ($LatestBranch.IsPresent) { $selectorCount++ }
+
+if ($selectorCount -gt 1) {
     throw 'Release, Nightly, LatestNightly, and LatestBranch cannot be specified together.'
 }
 
