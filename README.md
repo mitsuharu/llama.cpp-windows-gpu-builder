@@ -22,8 +22,8 @@ git submodule update --init --recursive
 Open **Actions > Build Windows GPU binaries > Run workflow**. Select one of:
 
 - `all`: CUDA and every configured ROCm target
-- `cuda`: CUDA 12.4 only
-- `rocm`: ROCm 7.14 only, using the selected `gfx` target
+- `cuda`: the CUDA version configured in the workflow
+- `rocm`: the ROCm version configured in the workflow, using the selected `gfx` target
 
 The output is available from the workflow run as a downloadable artifact.
 
@@ -64,6 +64,25 @@ Prerequisites: CMake, GNU Make, and AMD's Windows ROCm/HIP SDK (or TheRock ROCm 
 ```
 
 The GitHub workflow uses the same TheRock wheel-based environment as upstream `llama.cpp` CI.
+
+## Updating toolchain versions
+
+CUDA and ROCm versions are defined once in the top-level `env` block of `.github/workflows/build-windows-gpu.yml`:
+
+```yaml
+env:
+  CUDA_VERSION: '12.4'
+  ROCM_VERSION: '7.14.0'
+```
+
+To update a toolchain:
+
+1. Change only the corresponding value in the top-level `env` block.
+2. For CUDA, confirm that `vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml` has an installer step for the new version. Update the `llama.cpp` submodule first if necessary.
+3. For ROCm, confirm that the version is published in AMD's `rocm/whl-multi-arch` package index.
+4. Run only the changed backend from GitHub Actions and confirm that the backend DLL and versioned ZIP artifact are produced.
+
+Do not add job-level copies of these version values. Artifact names and setup steps read the shared variables automatically.
 
 ## Package a local build
 

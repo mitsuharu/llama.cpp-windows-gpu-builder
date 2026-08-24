@@ -26,6 +26,16 @@ on:
 permissions:
   contents: read
 
+# Toolchain versions used by every job and artifact name.
+# To upgrade:
+# 1. Update the value here only.
+# 2. CUDA: verify vendor/llama.cpp/.github/actions/windows-setup-cuda supports it.
+# 3. ROCm: verify the version exists at https://repo.amd.com/rocm/whl-multi-arch/.
+# 4. Run the corresponding backend manually and verify its DLL and ZIP artifact.
+env:
+  CUDA_VERSION: '12.4'
+  ROCM_VERSION: '7.14.0'
+
 concurrency:
   group: windows-gpu-${{ github.ref }}
   cancel-in-progress: true
@@ -35,8 +45,6 @@ jobs:
     if: inputs.backend == 'all' || inputs.backend == 'cuda'
     runs-on: windows-2022
     timeout-minutes: 120
-    env:
-      CUDA_VERSION: '12.4'
     steps:
       - name: Checkout with pinned llama.cpp
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,7 +97,6 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 180
     env:
-      ROCM_VERSION: '7.14.0'
       GPU_TARGET: ${{ inputs.rocm_target }}
     steps:
       - name: Checkout with pinned llama.cpp
