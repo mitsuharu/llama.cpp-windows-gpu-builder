@@ -1,22 +1,32 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [string] $Executable = 'llama-cli.exe',
-    [string] $RocmRoot = $(if ($env:HIP_PATH) { $env:HIP_PATH } else { 'C:\TheRock\build' }),
+    [string] $RocmRoot,
     [switch] $SkipDeviceCheck,
     [Parameter(ValueFromRemainingArguments)]
     [string[]] $LlamaArguments
 )
 
 $ErrorActionPreference = 'Stop'
+$bundledRuntime = $PSScriptRoot
+if (-not $RocmRoot) {
+    if (Test-Path (Join-Path $bundledRuntime 'hipblas.dll')) {
+        $RocmRoot = $bundledRuntime
+    } elseif ($env:HIP_PATH) {
+        $RocmRoot = $env:HIP_PATH
+    } else {
+        $RocmRoot = 'C:\TheRock\build'
+    }
+}
 $rocm = [IO.Path]::GetFullPath($RocmRoot)
-$rocmBin = Join-Path $rocm 'bin'
+$rocmBin = if (Test-Path (Join-Path $rocm 'hipblas.dll')) { $rocm } else { Join-Path $rocm 'bin' }
 $exe = Join-Path $PSScriptRoot $Executable
 
 if (-not (Test-Path $exe)) {
     throw "llama.cpp executable not found: $exe"
 }
 if (-not (Test-Path $rocmBin)) {
-    throw "ROCm runtime directory not found: $rocmBin. Install ROCm/TheRock 7.14 for Windows and set HIP_PATH or use -RocmRoot."
+    throw "ROCm runtime directory not found: $rocmBin. Use the bundled runtime or specify -RocmRoot."
 }
 
 $requiredDlls = @('hipblas.dll', 'rocblas.dll', 'rocsolver.dll')

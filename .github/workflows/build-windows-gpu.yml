@@ -197,7 +197,23 @@ jobs:
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
 
+      - name: Resolve ROCm cache context
+        id: rocm-cache-context
+        shell: pwsh
+        run: |
+          $pythonVersion = python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+          "python=$pythonVersion" >> $env:GITHUB_OUTPUT
+          "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Restore ROCm SDK cache
+        id: rocm-sdk-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: C:\TheRock\build
+          key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ hashFiles('vendor/llama.cpp/.github/actions/windows-setup-rocm/action.yml') }}
+
       - name: Set up ROCm
+        if: steps.rocm-sdk-cache.outputs.cache-hit != 'true'
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-rocm
         with:
           version: ${{ env.ROCM_VERSION }}
@@ -219,6 +235,12 @@ jobs:
           "LLVM_PATH=$rocmPath\lib\llvm" >> $env:GITHUB_ENV
           $binPath >> $env:GITHUB_PATH
           'C:\TheRock\build\.venv\Scripts' >> $env:GITHUB_PATH
+
+      - name: Restore ROCm build cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: build-rocm
+          key: windows-2022-rocm-build-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ steps.llama-source.outputs.ref }}-${{ hashFiles('.github/workflows/build-windows-gpu.yml', 'scripts/Build-Rocm.ps1') }}
 
       - name: Build ROCm with peer copy disabled
         shell: pwsh
@@ -258,9 +280,26 @@ jobs:
         shell: pwsh
         run: Copy-Item ./scripts/Run-Rocm.ps1 ./build-rocm/bin/Run-Rocm.ps1
 
-      - name: Create ROCm package
+      - name: Create self-contained ROCm package
         shell: pwsh
-        run: ./scripts/Package-Build.ps1 -BuildDir ./build-rocm -Name "llama-${env:LLAMA_REF}-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
+        run: ./scripts/Package-RocmBuild.ps1 -BuildDir ./build-rocm -RocmRoot $env:HIP_PATH -Name "llama-${env:LLAMA_REF}-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
+
+      - name: Verify bundled ROCm runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem ./dist/*.zip)
+          if ($archives.Count -ne 1) { throw "Expected one ROCm ZIP, found $($archives.Count)." }
+          $archive = $archives[0]
+          $testDir = Join-Path $env:RUNNER_TEMP 'llama-rocm-package-test'
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $testDir
+          $required = @('ggml-hip.dll', 'hipblas.dll', 'rocblas.dll', 'rocsolver.dll', 'Run-Rocm.ps1', 'ROCM-RUNTIME-FILES.txt')
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $testDir $_)) }
+          if (-not (Get-ChildItem $testDir -Filter 'amdhip64*.dll' -File)) { $missing += 'amdhip64*.dll' }
+          if (-not (Get-ChildItem $testDir -Filter 'amd_comgr*.dll' -File)) { $missing += 'amd_comgr*.dll' }
+          if (-not (Get-ChildItem (Join-Path $testDir 'rocblas') -Recurse -File)) { $missing += 'rocblas runtime data' }
+          if (-not (Get-ChildItem (Join-Path $testDir 'licenses') -Recurse -File)) { $missing += 'licenses' }
+          if ($missing) { throw "Bundled ROCm package verification failed: $($missing -join ', ')" }
 
       - name: Upload ROCm package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
