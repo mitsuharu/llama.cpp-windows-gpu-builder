@@ -47,6 +47,7 @@ on:
           - gfx1101
           - gfx1150
           - gfx1151
+          - gfx1200
           - gfx1201
 permissions:
   contents: read

@@ -60,6 +60,7 @@ Release作成には`GITHUB_TOKEN`の`contents: write`権限を使用します。
 | `gfx1101` | Radeon RX 7800 XT / RX 7700 XT |
 | `gfx1150` | 一部のRyzen AI 300 APU |
 | `gfx1151` | 一部のRyzen AI Max APU |
+| `gfx1200` | Radeon RX 9060シリーズ (RDNA 4) |
 | `gfx1201` | Radeon AI PRO R9700 (RDNA 4) |
 
 使用するGPUの正確なターゲットは、AMDの最新互換性ドキュメントで確認してください。Windows版ROCmが対応するハードウェアは、Linux版ROCmより限定されています。
