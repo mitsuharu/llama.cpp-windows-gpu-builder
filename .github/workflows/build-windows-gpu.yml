@@ -30,7 +30,7 @@ on:
       publish_release:
         description: Attach successful build ZIPs to a GitHub Release
         required: true
-        default: false
+        default: true
         type: boolean
       release_tag:
         description: Optional Release tag (empty generates a unique build tag)
@@ -419,8 +419,15 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [cuda, rocm, vulkan]
+    # Keep publishing limited to manual runs for now. If automatic llama.cpp
+    # release detection is added later, extend this condition with an explicit
+    # `new_release == true` output instead of allowing every scheduled run.
+    # 現在は手動実行だけがReleaseを公開する。将来llama.cppの新リリースを
+    # 自動検知する場合は、すべての定期実行を許可せず、`new_release == true`
+    # のような新版検出結果をこの条件へ明示的に追加すること。
     if: >-
       always() &&
+      github.event_name == 'workflow_dispatch' &&
       inputs.publish_release &&
       !cancelled() &&
       (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.vulkan.result == 'success') &&
