@@ -161,6 +161,12 @@ env:
 
 各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理とArtifact名は、トップレベルの共有変数を自動的に参照します。
 
+## Pull Requestの軽量チェック
+
+Pull Requestを作成または更新すると、`.github/workflows/ci.yml`がPowerShellスクリプトの構文検査とWindows x64向けCPUコアライブラリの最小ビルドを実行します。CUDA・ROCm・Vulkan SDKの取得、GPUバックエンドのコンパイル、ZIP作成、Artifactアップロードは行わないため、通常の機能追加PRを比較的短時間で確認できます。新しいコミットがpushされた場合は古い実行をキャンセルします。
+
+GPU固有のコードや配布処理を変更した場合は、マージ前に**Actions > Build Windows GPU binaries > Run workflow**から該当バックエンドを手動実行してください。
+
 ## ローカルビルドのパッケージ化
 
 ```powershell

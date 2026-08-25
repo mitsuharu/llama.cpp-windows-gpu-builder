@@ -1,0 +1,56 @@
+name: Pull request checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  windows-smoke:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = $false
+          Get-ChildItem ./scripts -Filter '*.ps1' -File | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
+            foreach ($parseError in $errors) {
+              Write-Error "$($_.FullName): $($parseError.Message)"
+              $failed = $true
+            }
+          }
+          if ($failed) { throw 'PowerShell syntax validation failed.' }
+
+      - name: Configure minimal CPU build
+        shell: pwsh
+        run: |
+          cmake -S vendor/llama.cpp -B build-pr-check -G 'Visual Studio 17 2022' -A x64 `
+            -DGGML_NATIVE=OFF `
+            -DGGML_BACKEND_DL=ON `
+            -DLLAMA_BUILD_TESTS=OFF `
+            -DLLAMA_BUILD_EXAMPLES=OFF `
+            -DLLAMA_BUILD_SERVER=OFF `
+            -DLLAMA_CURL=OFF
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
+
+      - name: Build core library
+        shell: pwsh
+        run: |
+          cmake --build build-pr-check --config Release --target llama --parallel $env:NUMBER_OF_PROCESSORS
+          if ($LASTEXITCODE -ne 0) { throw "Core build failed: $LASTEXITCODE" }
