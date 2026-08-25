@@ -207,7 +207,7 @@ jobs:
 
       - name: Restore ROCm SDK cache
         id: rocm-sdk-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: C:\TheRock\build
           key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ hashFiles('vendor/llama.cpp/.github/actions/windows-setup-rocm/action.yml') }}
@@ -250,7 +250,7 @@ jobs:
           'C:\TheRock\build\.venv\Scripts' >> $env:GITHUB_PATH
 
       - name: Restore ROCm build cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-rocm
           key: windows-2022-rocm-build-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ steps.llama-source.outputs.ref }}-${{ hashFiles('.github/workflows/build-windows-gpu.yml', 'scripts/Build-Rocm.ps1') }}
