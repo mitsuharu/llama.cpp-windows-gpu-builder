@@ -228,7 +228,9 @@ jobs:
           $rocmPath = (rocm-sdk path --root).Trim()
           $cmakePath = (rocm-sdk path --cmake).Trim()
           $binPath = (rocm-sdk path --bin).Trim()
+          $packageRoot = (python -c "import site; print(site.getsitepackages()[0])").Trim()
           "HIP_PATH=$rocmPath" >> $env:GITHUB_ENV
+          "ROCM_PACKAGE_ROOT=$packageRoot" >> $env:GITHUB_ENV
           "CMAKE_PREFIX_PATH=$cmakePath" >> $env:GITHUB_ENV
           "HIP_DEVICE_LIB_PATH=$rocmPath\lib\llvm\amdgcn\bitcode" >> $env:GITHUB_ENV
           'HIP_PLATFORM=amd' >> $env:GITHUB_ENV
@@ -282,7 +284,7 @@ jobs:
 
       - name: Create self-contained ROCm package
         shell: pwsh
-        run: ./scripts/Package-RocmBuild.ps1 -BuildDir ./build-rocm -RocmRoot $env:HIP_PATH -Name "llama-${env:LLAMA_REF}-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
+        run: ./scripts/Package-RocmBuild.ps1 -BuildDir ./build-rocm -RocmRoot $env:HIP_PATH -RuntimeRoot $env:ROCM_PACKAGE_ROOT -Name "llama-${env:LLAMA_REF}-win-x64-rocm-${env:ROCM_VERSION}-${env:GPU_TARGET}-no-peer-copy"
 
       - name: Verify bundled ROCm runtime
         shell: pwsh
