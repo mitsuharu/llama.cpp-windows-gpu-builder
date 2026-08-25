@@ -47,6 +47,7 @@ on:
           - gfx1101
           - gfx1150
           - gfx1151
+          - gfx1200
           - gfx1201
 permissions:
   contents: read
@@ -442,6 +443,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
       LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref || needs.vulkan.outputs.llama_ref }}
       REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
+      SELECTED_BACKEND: ${{ inputs.backend }}
+      ROCM_TARGET: ${{ inputs.rocm_target }}
     steps:
       - name: Download successful build artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -465,11 +468,34 @@ jobs:
             exit 1
           fi
 
+          case "$SELECTED_BACKEND" in
+            cuda)
+              release_title="llama-${LLAMA_REF}-win-x64-cuda-${CUDA_VERSION}-no-peer-copy"
+              release_notes="Windows x64 CUDA ${CUDA_VERSION} binaries built from llama.cpp ${LLAMA_REF}. Peer copy is disabled."
+              ;;
+            rocm)
+              release_title="llama-${LLAMA_REF}-win-x64-rocm-${ROCM_VERSION}-${ROCM_TARGET}-no-peer-copy"
+              release_notes="Windows x64 ROCm ${ROCM_VERSION} (${ROCM_TARGET}) binaries built from llama.cpp ${LLAMA_REF}. The ROCm runtime and device kernels are bundled; peer copy is disabled."
+              ;;
+            vulkan)
+              release_title="llama-${LLAMA_REF}-win-x64-vulkan-${VULKAN_VERSION}"
+              release_notes="Windows x64 Vulkan SDK ${VULKAN_VERSION} binaries built from llama.cpp ${LLAMA_REF}."
+              ;;
+            all)
+              release_title="llama-${LLAMA_REF}-win-x64-gpu-cuda-${CUDA_VERSION}-rocm-${ROCM_VERSION}-${ROCM_TARGET}-vulkan-${VULKAN_VERSION}"
+              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION}; ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. Peer copy is disabled in CUDA/ROCm builds."
+              ;;
+            *)
+              echo "Unsupported backend for Release metadata: $SELECTED_BACKEND" >&2
+              exit 1
+              ;;
+          esac
+
           if gh release view "$release_tag" >/dev/null 2>&1; then
             gh release upload "$release_tag" "${assets[@]}"
           else
             gh release create "$release_tag" "${assets[@]}" \
               --target "$GITHUB_SHA" \
-              --title "llama.cpp ${LLAMA_REF} Windows GPU build" \
-              --notes "Windows GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA: ${CUDA_VERSION}; ROCm: ${ROCM_VERSION}; Vulkan SDK: ${VULKAN_VERSION}. Peer copy is disabled in CUDA/ROCm builds."
+              --title "$release_title" \
+              --notes "$release_notes"
           fi
