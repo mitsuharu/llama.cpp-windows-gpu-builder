@@ -1,6 +1,9 @@
 name: Build Windows GPU binaries
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-windows-gpu.yml'
   workflow_dispatch:
     inputs:
       backend:
@@ -69,7 +72,7 @@ concurrency:
 
 jobs:
   cuda:
-    if: inputs.backend == 'all' || inputs.backend == 'cuda'
+    if: github.event_name == 'pull_request' || inputs.backend == 'all' || inputs.backend == 'cuda'
     runs-on: windows-2022
     timeout-minutes: 120
     outputs:
@@ -84,7 +87,7 @@ jobs:
         id: llama-source
         shell: pwsh
         env:
-          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_SOURCE: ${{ inputs.llama_source || 'release' }}
           LLAMA_TAG: ${{ inputs.llama_tag }}
         run: |
           $tag = $env:LLAMA_TAG.Trim()
@@ -153,11 +156,11 @@ jobs:
           if-no-files-found: error
 
   rocm:
-    if: inputs.backend == 'all' || inputs.backend == 'rocm'
+    if: github.event_name == 'pull_request' || inputs.backend == 'all' || inputs.backend == 'rocm'
     runs-on: windows-2022
     timeout-minutes: 180
     env:
-      GPU_TARGET: ${{ inputs.rocm_target }}
+      GPU_TARGET: ${{ inputs.rocm_target || 'gfx1201' }}
     outputs:
       llama_ref: ${{ steps.llama-source.outputs.ref }}
     steps:
@@ -170,7 +173,7 @@ jobs:
         id: llama-source
         shell: pwsh
         env:
-          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_SOURCE: ${{ inputs.llama_source || 'release' }}
           LLAMA_TAG: ${{ inputs.llama_tag }}
         run: |
           $tag = $env:LLAMA_TAG.Trim()
@@ -324,7 +327,7 @@ jobs:
           if-no-files-found: error
 
   vulkan:
-    if: inputs.backend == 'all' || inputs.backend == 'vulkan'
+    if: github.event_name == 'pull_request' || inputs.backend == 'all' || inputs.backend == 'vulkan'
     runs-on: windows-2022
     timeout-minutes: 120
     outputs:
@@ -339,7 +342,7 @@ jobs:
         id: llama-source
         shell: pwsh
         env:
-          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_SOURCE: ${{ inputs.llama_source || 'release' }}
           LLAMA_TAG: ${{ inputs.llama_tag }}
         run: |
           $tag = $env:LLAMA_TAG.Trim()

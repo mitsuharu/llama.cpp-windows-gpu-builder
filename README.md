@@ -161,6 +161,12 @@ env:
 
 各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理とArtifact名は、トップレベルの共有変数を自動的に参照します。
 
+### 月次の自動更新確認
+
+`.github/workflows/update-toolchains.yml`は毎月1日と手動実行時に公式配布元を確認します。CUDAは固定した`llama.cpp`セットアップ処理が対応するWindows x64版、ROCmは`gfx1201`用device wheelも存在する安定版、VulkanはLunarG公式APIの最新版を選択します。
+
+いずれかに更新がある場合だけ`automation/toolchain-updates`ブランチを更新してPRを作成します。PRではCUDA、ROCm、Vulkanの3ビルドが実行されます。自動マージは行いません。リポジトリ設定でGitHub ActionsによるPR作成が無効な場合は、**Settings > Actions > General > Workflow permissions > Allow GitHub Actions to create and approve pull requests**を有効にしてください。
+
 ## ローカルビルドのパッケージ化
 
 ```powershell

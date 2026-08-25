@@ -1,0 +1,54 @@
+name: Update GPU toolchain versions
+
+on:
+  schedule:
+    - cron: '17 2 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-gpu-toolchains
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check official toolchain sources
+        id: versions
+        shell: pwsh
+        run: ./scripts/Update-ToolchainVersions.ps1
+
+      - name: Update pull request branch
+        if: steps.versions.outputs.changed == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_BRANCH: automation/toolchain-updates
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C $env:UPDATE_BRANCH
+          git add .github/workflows/build-windows-gpu.yml README.md
+          git commit -m 'Update GPU toolchain versions'
+          git push --force origin "HEAD:refs/heads/$env:UPDATE_BRANCH"
+
+          $existing = gh pr list --head $env:UPDATE_BRANCH --state open --json number --jq '.[0].number'
+          if (-not $existing) {
+            gh pr create `
+              --base $env:GITHUB_REF_NAME `
+              --head $env:UPDATE_BRANCH `
+              --title 'Update GPU toolchain versions' `
+              --body "Monthly toolchain update. CUDA ${{ steps.versions.outputs.cuda }}; ROCm ${{ steps.versions.outputs.rocm }}; Vulkan SDK ${{ steps.versions.outputs.vulkan }}. This PR is not merged automatically; merge it only after all GPU backend builds pass."
+          }
