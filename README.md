@@ -45,6 +45,7 @@ ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub
 手動ビルドでは`publish_release`がデフォルトで有効になっており、成功したZIPを[Releases](https://github.com/mitsuharu/llama.cpp-windows-gpu-builder/releases)にも添付します。Artifactだけが必要な場合は、実行時に`publish_release`を無効にしてください。Pull Request用の軽量CIなど、`workflow_dispatch`以外の実行からReleaseを作成することはありません。
 
 - `release_tag`が空欄の場合は、`build-<llama.cppバージョン>-<実行番号>.<再実行番号>`形式の重複しないタグを生成します。
+- 新しいReleaseのタイトルには、選択したバックエンド、ツールチェーンのバージョン、およびROCm版では`gfx`ターゲットを含めます。`all`の場合は3バックエンドの情報をまとめて表示します。
 - `release_tag`を指定し、そのReleaseが存在しない場合は、新しいReleaseを作成します。
 - 指定したReleaseがすでに存在する場合は、そのReleaseへZIPを追加します。同名Assetがすでに存在する場合は上書きせずエラーになります。
 - 複数のバックエンドをビルドした場合は、成功した各ZIPを同じReleaseへ添付します。
