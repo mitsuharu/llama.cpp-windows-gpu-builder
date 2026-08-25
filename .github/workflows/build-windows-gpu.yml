@@ -210,13 +210,24 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: C:\TheRock\build
-          key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ hashFiles('vendor/llama.cpp/.github/actions/windows-setup-rocm/action.yml') }}
+          key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ hashFiles('vendor/llama.cpp/.github/actions/windows-setup-rocm/action.yml') }}
 
       - name: Set up ROCm
         if: steps.rocm-sdk-cache.outputs.cache-hit != 'true'
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-rocm
         with:
           version: ${{ env.ROCM_VERSION }}
+
+      - name: Install ROCm device kernels
+        if: steps.rocm-sdk-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & C:\TheRock\build\.venv\Scripts\Activate.ps1
+          python -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ "rocm[device-${env:GPU_TARGET}]==${env:ROCM_VERSION}"
+          if ($LASTEXITCODE -ne 0) { throw "ROCm device wheel installation failed: $LASTEXITCODE" }
+          rocm-sdk init
+          if ($LASTEXITCODE -ne 0) { throw "rocm-sdk init after device installation failed: $LASTEXITCODE" }
 
       - name: Export ROCm environment
         shell: pwsh
@@ -228,7 +239,7 @@ jobs:
           $rocmPath = (rocm-sdk path --root).Trim()
           $cmakePath = (rocm-sdk path --cmake).Trim()
           $binPath = (rocm-sdk path --bin).Trim()
-          $packageRoot = (python -c "import site; print(site.getsitepackages()[0])").Trim()
+          $packageRoot = Join-Path $env:VIRTUAL_ENV 'Lib\site-packages'
           "HIP_PATH=$rocmPath" >> $env:GITHUB_ENV
           "ROCM_PACKAGE_ROOT=$packageRoot" >> $env:GITHUB_ENV
           "CMAKE_PREFIX_PATH=$cmakePath" >> $env:GITHUB_ENV
@@ -299,7 +310,9 @@ jobs:
           $missing = $required | Where-Object { -not (Test-Path (Join-Path $testDir $_)) }
           if (-not (Get-ChildItem $testDir -Filter 'amdhip64*.dll' -File)) { $missing += 'amdhip64*.dll' }
           if (-not (Get-ChildItem $testDir -Filter 'amd_comgr*.dll' -File)) { $missing += 'amd_comgr*.dll' }
-          if (-not (Get-ChildItem (Join-Path $testDir 'rocblas') -Recurse -File)) { $missing += 'rocblas runtime data' }
+          $hasLegacyKernels = (Test-Path (Join-Path $testDir 'rocblas\library')) -and (Get-ChildItem (Join-Path $testDir 'rocblas\library') -Recurse -File)
+          $hasKpackKernels = (Test-Path (Join-Path $testDir '.kpack')) -and (Get-ChildItem (Join-Path $testDir '.kpack') -Recurse -File -Filter '*.kpack')
+          if (-not ($hasLegacyKernels -or $hasKpackKernels)) { $missing += 'ROCm device kernels (rocblas/library or .kpack)' }
           if (-not (Get-ChildItem (Join-Path $testDir 'licenses') -Recurse -File)) { $missing += 'licenses' }
           if ($missing) { throw "Bundled ROCm package verification failed: $($missing -join ', ')" }
 

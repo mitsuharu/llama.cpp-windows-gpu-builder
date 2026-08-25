@@ -92,7 +92,7 @@ GitHub Actionsでは、公式`llama.cpp` CIと同じTheRock wheelベースの環
 
 ### ROCmでGPU推論を有効にする
 
-ROCm版ZIPには、`hipblas.dll`、`rocblas.dll`などの実行時DLL、間接依存DLL、および`rocblas\library`のGPUカーネルを同梱します。実行PCにROCm SDKをインストールしたりPATHを設定したりする必要はありません。対応するAMD GPUドライバーは別途必要です。
+ROCm版ZIPには、`hipblas.dll`、`rocblas.dll`などの実行時DLL、間接依存DLL、およびGPUターゲット別のカーネル（新しいROCmの`.kpack`、または従来版の`rocblas\library`）を同梱します。実行PCにROCm SDKをインストールしたりPATHを設定したりする必要はありません。対応するAMD GPUドライバーは別途必要です。
 
 ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する`Run-Rocm.ps1`も含まれます。まずGPUが認識されることを確認します。
 

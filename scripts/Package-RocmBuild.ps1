@@ -48,8 +48,22 @@ if (-not $rocblas) {
         Where-Object { Test-Path (Join-Path $_.FullName 'library') -PathType Container } |
         Select-Object -First 1 -ExpandProperty FullName
 }
-if (-not $rocblas) { throw "rocBLAS kernel directory was not found below '$rocm' or '$runtime'." }
-Copy-Item -LiteralPath $rocblas -Destination (Join-Path $stage 'rocblas') -Recurse -Force
+if ($rocblas) {
+    Copy-Item -LiteralPath $rocblas -Destination (Join-Path $stage 'rocblas') -Recurse -Force
+}
+
+$kpackDirectories = Get-ChildItem -LiteralPath $runtime -Directory -Filter '.kpack' -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { Get-ChildItem -LiteralPath $_.FullName -File -Filter '*.kpack' -ErrorAction SilentlyContinue }
+if ($kpackDirectories) {
+    $kpackDestination = Join-Path $stage '.kpack'
+    New-Item -ItemType Directory -Path $kpackDestination -Force | Out-Null
+    foreach ($kpackDirectory in $kpackDirectories) {
+        Copy-Item -Path (Join-Path $kpackDirectory.FullName '*') -Destination $kpackDestination -Recurse -Force
+    }
+}
+if (-not $rocblas -and -not $kpackDirectories) {
+    throw "No ROCm device kernels (rocblas\library or .kpack) were found below '$rocm' or '$runtime'."
+}
 
 $licenseDestination = Join-Path $stage 'licenses\rocm'
 New-Item -ItemType Directory -Path $licenseDestination -Force | Out-Null
@@ -74,10 +88,15 @@ $requiredDlls = @('ggml-hip.dll', 'hipblas.dll', 'rocblas.dll', 'rocsolver.dll')
 $missing = $requiredDlls | Where-Object { -not (Test-Path (Join-Path $stage $_)) }
 $hipRuntime = Get-ChildItem -LiteralPath $stage -Filter 'amdhip64*.dll' -File
 $comgrRuntime = Get-ChildItem -LiteralPath $stage -Filter 'amd_comgr*.dll' -File
-$kernelFiles = Get-ChildItem -LiteralPath (Join-Path $stage 'rocblas') -Recurse -File
+$legacyKernelFiles = if (Test-Path (Join-Path $stage 'rocblas\library')) {
+    Get-ChildItem -LiteralPath (Join-Path $stage 'rocblas\library') -Recurse -File
+} else { @() }
+$kpackFiles = if (Test-Path (Join-Path $stage '.kpack')) {
+    Get-ChildItem -LiteralPath (Join-Path $stage '.kpack') -Recurse -File -Filter '*.kpack'
+} else { @() }
 if (-not $hipRuntime) { $missing += 'amdhip64*.dll' }
 if (-not $comgrRuntime) { $missing += 'amd_comgr*.dll' }
-if (-not $kernelFiles) { $missing += 'rocblas\library contents' }
+if (-not $legacyKernelFiles -and -not $kpackFiles) { $missing += 'ROCm device kernels (rocblas\library or .kpack)' }
 if ($missing) { throw "ROCm package is incomplete: $($missing -join ', ')" }
 
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -CompressionLevel Optimal
