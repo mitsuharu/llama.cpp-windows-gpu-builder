@@ -142,26 +142,36 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 .\build-vulkan\bin\Release\llama-cli.exe -m C:\models\model.gguf -ngl 99
 ```
 
-## ツールチェーンのバージョン更新
+## ツールチェーンのバージョン選択と更新
 
-CUDA、ROCm、Vulkan SDKのバージョンは、`.github/workflows/build-windows-gpu.yml`のトップレベルにある`env`ブロックで一元管理しています。
+手動実行画面では、バックエンドに続いてCUDA、ROCm、Vulkan SDKのバージョンを選択できます。`all`を選んだ場合は、3つの選択値がそれぞれのジョブに使われます。
+
+| ツールチェーン | 選択肢 | デフォルト |
+|---|---|---|
+| CUDA | `12.4` | `12.4` |
+| ROCm | `7.14.0`、`10.0.0` | `7.14.0` |
+| Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
+
+ROCmは安定して利用してきた7系と、新しい10系を選べます。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
+
+`.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 
 ```yaml
 env:
-  CUDA_VERSION: '12.4'
-  ROCM_VERSION: '7.14.0'
-  VULKAN_VERSION: '1.4.357.0'
+  CUDA_VERSION: ${{ inputs.cuda_version }}
+  ROCM_VERSION: ${{ inputs.rocm_version }}
+  VULKAN_VERSION: ${{ inputs.vulkan_version }}
 ```
 
 ツールチェーンを更新する場合は、次の手順を実施します。
 
-1. トップレベルの`env`ブロックにある該当バージョンだけを変更します。
+1. `workflow_dispatch.inputs`にある該当バージョンの`options`へ候補を追加します。既定値も更新する場合は同じ入力の`default`を変更します。
 2. CUDAの場合は、`vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml`に新しいバージョンのインストール処理が存在することを確認します。必要であれば、先に`llama.cpp` submoduleを更新します。
 3. ROCmの場合は、AMDの`rocm/whl-multi-arch`パッケージインデックスで対象バージョンが公開されていることを確認します。
 4. Vulkanの場合は、LunarGのWindows SDKダウンロードページで対象バージョンが公開されていることを確認します。
 5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。ROCm版では依存DLL、`rocblas\library`、ライセンスもZIPに含まれることを確認します。
 
-各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理とArtifact名は、トップレベルの共有変数を自動的に参照します。
+各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理、キャッシュキー、Artifact名は、トップレベルの共有変数を自動的に参照します。
 
 ## Pull Requestの軽量チェック
 
