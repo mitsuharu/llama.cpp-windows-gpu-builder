@@ -152,7 +152,7 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 | ROCm | `7.14.0`、`10.0.0` | `7.14.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-ROCmは安定して利用してきた7系と、新しい10系を選べます。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
+ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
 
 `.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 
@@ -167,7 +167,7 @@ env:
 
 1. `workflow_dispatch.inputs`にある該当バージョンの`options`へ候補を追加します。既定値も更新する場合は同じ入力の`default`を変更します。
 2. CUDAの場合は、`vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml`に新しいバージョンのインストール処理が存在することを確認します。必要であれば、先に`llama.cpp` submoduleを更新します。
-3. ROCmの場合は、AMDの`rocm/whl-multi-arch`パッケージインデックスで対象バージョンが公開されていることを確認します。
+3. ROCmの場合は、7.14系ならAMDの従来の`rocm/whl-multi-arch`、10系以降ならTheRockの`stable.repo.amd.com/rocm/whl-next`パッケージインデックスで対象バージョンが公開されていることを確認します。
 4. Vulkanの場合は、LunarGのWindows SDKダウンロードページで対象バージョンが公開されていることを確認します。
 5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。ROCm版では依存DLL、`rocblas\library`、ライセンスもZIPに含まれることを確認します。
 

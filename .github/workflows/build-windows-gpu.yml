@@ -78,12 +78,14 @@ permissions:
 # To add a selectable version:
 # 1. Add it to the corresponding workflow_dispatch choice above.
 # 2. CUDA: verify vendor/llama.cpp/.github/actions/windows-setup-cuda supports it.
-# 3. ROCm: verify the version exists at https://repo.amd.com/rocm/whl-multi-arch/.
+# 3. ROCm: verify the version in the legacy 7.14 or stable 10+ package index.
 # 4. Vulkan: verify the version exists at https://vulkan.lunarg.com/sdk/home#windows.
 # 5. Run the corresponding backend manually and verify its DLL and ZIP artifact.
 env:
   CUDA_VERSION: ${{ inputs.cuda_version }}
   ROCM_VERSION: ${{ inputs.rocm_version }}
+  # ROCm 10 stable moved to the new TheRock aggregate index; 7.14 remains legacy.
+  ROCM_INDEX_URL: ${{ startsWith(inputs.rocm_version, '10.') && 'https://stable.repo.amd.com/rocm/whl-next/' || 'https://repo.amd.com/rocm/whl-multi-arch/' }}
   VULKAN_VERSION: ${{ inputs.vulkan_version }}
 
 concurrency:
@@ -233,24 +235,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: C:\TheRock\build
-          key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ hashFiles('vendor/llama.cpp/.github/actions/windows-setup-rocm/action.yml') }}
+          key: windows-2022-${{ runner.arch }}-${{ steps.rocm-cache-context.outputs.image }}-python-${{ steps.rocm-cache-context.outputs.python }}-rocm-sdk-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ hashFiles('scripts/Install-Rocm.ps1') }}
 
-      - name: Set up ROCm
-        if: steps.rocm-sdk-cache.outputs.cache-hit != 'true'
-        uses: ./vendor/llama.cpp/.github/actions/windows-setup-rocm
-        with:
-          version: ${{ env.ROCM_VERSION }}
-
-      - name: Install ROCm device kernels
+      - name: Set up ROCm SDK and device kernels
         if: steps.rocm-sdk-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          & C:\TheRock\build\.venv\Scripts\Activate.ps1
-          python -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ "rocm[device-${env:GPU_TARGET}]==${env:ROCM_VERSION}"
-          if ($LASTEXITCODE -ne 0) { throw "ROCm device wheel installation failed: $LASTEXITCODE" }
-          rocm-sdk init
-          if ($LASTEXITCODE -ne 0) { throw "rocm-sdk init after device installation failed: $LASTEXITCODE" }
+        run: ./scripts/Install-Rocm.ps1 -Version $env:ROCM_VERSION -IndexUrl $env:ROCM_INDEX_URL -Target $env:GPU_TARGET
 
       - name: Export ROCm environment
         shell: pwsh
