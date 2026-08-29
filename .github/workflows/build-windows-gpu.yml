@@ -13,6 +13,40 @@ on:
           - cuda
           - rocm
           - vulkan
+      cuda_version:
+        description: CUDA Toolkit version (used by CUDA/all)
+        required: true
+        default: '12.4'
+        type: choice
+        options:
+          - '12.4'
+      rocm_version:
+        description: ROCm version (used by ROCm/all)
+        required: true
+        default: '7.14.0'
+        type: choice
+        options:
+          - '7.14.0'
+          - '10.0.0'
+      vulkan_version:
+        description: Vulkan SDK version (used by Vulkan/all)
+        required: true
+        default: '1.4.357.0'
+        type: choice
+        options:
+          - '1.4.357.0'
+      rocm_target:
+        description: AMD GPU target (used by ROCm/all)
+        required: true
+        default: gfx1201
+        type: choice
+        options:
+          - gfx1100
+          - gfx1101
+          - gfx1150
+          - gfx1151
+          - gfx1200
+          - gfx1201
       llama_source:
         description: llama.cpp source type
         required: true
@@ -37,32 +71,20 @@ on:
         required: false
         default: ''
         type: string
-      rocm_target:
-        description: AMD GPU target (used by the ROCm job)
-        required: true
-        default: gfx1201
-        type: choice
-        options:
-          - gfx1100
-          - gfx1101
-          - gfx1150
-          - gfx1151
-          - gfx1200
-          - gfx1201
 permissions:
   contents: read
 
-# Toolchain versions used by every job and artifact name.
-# To upgrade:
-# 1. Update the value here only.
+# Toolchain versions selected in Run workflow and used by setup, cache, and artifact names.
+# To add a selectable version:
+# 1. Add it to the corresponding workflow_dispatch choice above.
 # 2. CUDA: verify vendor/llama.cpp/.github/actions/windows-setup-cuda supports it.
 # 3. ROCm: verify the version exists at https://repo.amd.com/rocm/whl-multi-arch/.
 # 4. Vulkan: verify the version exists at https://vulkan.lunarg.com/sdk/home#windows.
 # 5. Run the corresponding backend manually and verify its DLL and ZIP artifact.
 env:
-  CUDA_VERSION: '12.4'
-  ROCM_VERSION: '7.14.0'
-  VULKAN_VERSION: '1.4.357.0'
+  CUDA_VERSION: ${{ inputs.cuda_version }}
+  ROCM_VERSION: ${{ inputs.rocm_version }}
+  VULKAN_VERSION: ${{ inputs.vulkan_version }}
 
 concurrency:
   group: windows-gpu-${{ github.ref }}
