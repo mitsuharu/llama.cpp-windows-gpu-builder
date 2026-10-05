@@ -149,10 +149,10 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 | ツールチェーン | 選択肢 | デフォルト |
 |---|---|---|
 | CUDA | `12.4` | `12.4` |
-| ROCm | `7.14.0`、`10.0.0` | `7.14.0` |
+| ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
+ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
 
 `.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 
@@ -187,7 +187,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 
 ## llama.cppの更新
 
-更新スクリプトは、引数を指定しない場合に`v0.2.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
+更新スクリプトは、引数を指定しない場合に`v0.6.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
 
 ```powershell
 .\scripts\Update-LlamaCpp.ps1
@@ -196,7 +196,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 特定の安定版リリースを使用する場合は、[llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases)に掲載されている`vX.Y.Z`形式のタグを`-Release`で指定します。
 
 ```powershell
-.\scripts\Update-LlamaCpp.ps1 -Release v0.2.0
+.\scripts\Update-LlamaCpp.ps1 -Release v0.6.0
 ```
 
 `b10603`のようなnightly/dev版を使用する場合は、安定版と区別するため`-Nightly`で指定します。
