@@ -23,11 +23,12 @@ on:
       rocm_version:
         description: ROCm version (used by ROCm/all)
         required: true
-        default: '10.0.0'
+        default: '10.1.0'
         type: choice
         options:
           - '7.14.0'
           - '10.0.0'
+          - '10.1.0'
       vulkan_version:
         description: Vulkan SDK version (used by Vulkan/all)
         required: true
@@ -155,8 +156,7 @@ jobs:
             -DGGML_CUDA_NO_PEER_COPY=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON ^
-            -DGGML_CUDA_CUB_3DOT2=ON
+            -DLLAMA_BUILD_BORINGSSL=ON
           cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify CUDA backend
@@ -282,7 +282,6 @@ jobs:
             -DGGML_HIP=ON `
             -DGGML_CUDA_NO_PEER_COPY=ON `
             -DGGML_HIP_NO_VMM=ON `
-            -DGGML_HIP_ROCWMMA_FATTN=ON `
             -DGGML_NATIVE=OFF `
             -DGGML_BACKEND_DL=ON `
             -DLLAMA_BUILD_BORINGSSL=ON `
