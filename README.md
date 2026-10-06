@@ -1,6 +1,6 @@
 # llama.cpp Windows GPU Builder
 
-NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAでは`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCmではpeer copyを有効/無効から選択でき、既定では従来どおり無効化します。
+NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAでは`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10系のWindowsネイティブビルドとランタイム同梱ZIPの提供を重視し、ROCmのpeer copyは既定で有効にします（無効化も選択可能です）。
 
 `llama.cpp`のソースコードはGit submoduleとして特定のコミットに固定しています。GitHub Actionsは使い捨てのWindows runner上にツールチェーンを準備し、バイナリをビルドしてZIP形式のArtifactをアップロードします。ローカルで隔離されたビルド環境が必要な場合は、Windows VMまたはWindows Sandboxを利用できます。WSL/DockerのCUDA・ROCmコンテナで生成されるのはLinuxバイナリであり、Windowsネイティブバイナリではありません。
 
@@ -152,7 +152,7 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 | ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`disabled`（既定）と`enabled`を選択できます。`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定し、`enabled`ではこの定義を省略してROCm/HIPのpeer copy実装を利用します。ROCm 10.1のnon-P2P / multi-GPU修正を検証する場合は`enabled`を選択できます。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
+ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
 
 `.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 

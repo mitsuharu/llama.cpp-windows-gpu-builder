@@ -51,7 +51,7 @@ on:
       rocm_peer_copy:
         description: ROCm peer copy support (enabled omits GGML_CUDA_NO_PEER_COPY)
         required: true
-        default: disabled
+        default: enabled
         type: choice
         options:
           - disabled
