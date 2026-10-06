@@ -1,6 +1,6 @@
 # llama.cpp Windows GPU Builder
 
-NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAとROCmでは`GGML_CUDA_NO_PEER_COPY=ON`を指定してビルドします。
+NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAでは`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCmではpeer copyを有効/無効から選択でき、既定では従来どおり無効化します。
 
 `llama.cpp`のソースコードはGit submoduleとして特定のコミットに固定しています。GitHub Actionsは使い捨てのWindows runner上にツールチェーンを準備し、バイナリをビルドしてZIP形式のArtifactをアップロードします。ローカルで隔離されたビルド環境が必要な場合は、Windows VMまたはWindows Sandboxを利用できます。WSL/DockerのCUDA・ROCmコンテナで生成されるのはLinuxバイナリであり、Windowsネイティブバイナリではありません。
 
@@ -23,7 +23,7 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 - `all`: CUDA、選択したROCmターゲット、およびVulkanをビルド
 - `cuda`: ワークフローに設定されたCUDAバージョンをビルド
-- `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド
+- `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド。`rocm_peer_copy`でpeer copyの有効/無効を選択可能
 - `vulkan`: ワークフローに設定されたVulkan SDKで、GPUメーカー共通のVulkan版をビルド
 
 `llama_source`では、使用する`llama.cpp`の種類を選択します。
@@ -36,9 +36,9 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 `llama_tag`は任意です。指定した種類とタグ形式が一致しない場合や、`latest-branch`を選択してタグも入力した場合は、ビルドを開始せずエラーになります。
 
-ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。
+ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。ROCm版はpeer copy設定も`peer-copy`または`no-peer-copy`としてArtifact名に含めます。
 
-ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub Actionsのキャッシュへ保存します。同じROCmバージョン、GPUターゲット、`llama.cpp`コミット、およびビルド設定で再実行した場合、SDKのダウンロード・展開と変更のないソースの再コンパイルを省略します。バージョンやビルド設定が変わるとキャッシュキーも変わるため、古い生成物は使用されません。
+ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub Actionsのキャッシュへ保存します。同じROCmバージョン、GPUターゲット、peer copy設定、`llama.cpp`コミット、およびビルド設定で再実行した場合、SDKのダウンロード・展開と変更のないソースの再コンパイルを省略します。バージョンやビルド設定が変わるとキャッシュキーも変わるため、古い生成物は使用されません。
 
 ### GitHub Releaseへの公開
 
@@ -152,7 +152,7 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 | ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。選択した値はセットアップ、キャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なるバージョンのキャッシュや成果物は混在しません。
+ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`disabled`（既定）と`enabled`を選択できます。`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定し、`enabled`ではこの定義を省略してROCm/HIPのpeer copy実装を利用します。ROCm 10.1のnon-P2P / multi-GPU修正を検証する場合は`enabled`を選択できます。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
 
 `.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 
