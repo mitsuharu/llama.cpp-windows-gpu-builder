@@ -3,6 +3,8 @@ param(
     [string] $SourceDir = (Join-Path $PSScriptRoot '..\vendor\llama.cpp'),
     [string] $BuildDir = (Join-Path $PSScriptRoot '..\build-cuda'),
     [string[]] $CudaArchitectures,
+    [ValidateSet('enabled', 'disabled')]
+    [string] $PeerCopy = 'enabled',
     [int] $Jobs = [Environment]::ProcessorCount
 )
 
@@ -25,10 +27,12 @@ $configureArgs = @(
     '-B', $build,
     '-G', 'Ninja Multi-Config',
     '-DGGML_CUDA=ON',
-    '-DGGML_CUDA_NO_PEER_COPY=ON',
     '-DGGML_NATIVE=OFF',
     '-DGGML_BACKEND_DL=ON'
 )
+if ($PeerCopy -eq 'disabled') {
+    $configureArgs += '-DGGML_CUDA_NO_PEER_COPY=ON'
+}
 if ($CudaArchitectures.Count -gt 0) {
     $configureArgs += "-DCMAKE_CUDA_ARCHITECTURES=$($CudaArchitectures -join ';')"
 }
@@ -38,4 +42,4 @@ if ($LASTEXITCODE -ne 0) { throw "CMake configure failed ($LASTEXITCODE)." }
 & cmake --build $build --config Release --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw "CMake build failed ($LASTEXITCODE)." }
 
-Write-Host "CUDA build complete: $build\bin\Release"
+Write-Host "CUDA build complete (peer copy $PeerCopy): $build\bin\Release"
