@@ -205,7 +205,7 @@ jobs:
 
       - name: Create CUDA package
         shell: pwsh
-        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-${env:CUDA_PEER_COPY_SUFFIX}"
+        run: ./scripts/Package-CudaBuild.ps1 -BuildDir ./build-cuda -CudaRoot $env:CUDA_PATH -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-${env:CUDA_PEER_COPY_SUFFIX}"
 
       - name: Upload CUDA package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -530,7 +530,7 @@ jobs:
           case "$SELECTED_BACKEND" in
             cuda)
               release_title="llama-${LLAMA_REF}-win-x64-cuda-${CUDA_VERSION}-${CUDA_PEER_COPY_SUFFIX}"
-              release_notes="Windows x64 CUDA ${CUDA_VERSION} binaries built from llama.cpp ${LLAMA_REF}. Peer copy is ${CUDA_PEER_COPY}."
+              release_notes="Windows x64 CUDA ${CUDA_VERSION} binaries built from llama.cpp ${LLAMA_REF}. The CUDA runtime and cuBLAS DLLs are bundled. Peer copy is ${CUDA_PEER_COPY}."
               ;;
             rocm)
               if [[ "$ROCM_PEER_COPY" == "enabled" ]]; then
@@ -554,7 +554,7 @@ jobs:
                 rocm_peer_copy_note="ROCm peer copy is disabled."
               fi
               release_title="llama-${LLAMA_REF}-win-x64-gpu-cuda-${CUDA_VERSION}-rocm-${ROCM_VERSION}-${ROCM_TARGET}-vulkan-${VULKAN_VERSION}"
-              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (peer copy ${CUDA_PEER_COPY}); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. ${rocm_peer_copy_note}"
+              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (runtime bundled, peer copy ${CUDA_PEER_COPY}); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. ${rocm_peer_copy_note}"
               ;;
             *)
               echo "Unsupported backend for Release metadata: $SELECTED_BACKEND" >&2

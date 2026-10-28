@@ -5,6 +5,7 @@
 - This repository builds reproducible Windows x64 `llama.cpp` packages for CUDA, ROCm, and Vulkan.
 - CUDA and ROCm builds default to peer copy enabled (ROCm 10.1+ for ROCm). Keep the selectable `disabled` mode, which sets `GGML_CUDA_NO_PEER_COPY=ON`, for compatibility and regression testing.
 - ROCm release ZIPs must be self-contained enough to run without a separately installed ROCm SDK.
+- CUDA release ZIPs must bundle the CUDA runtime and cuBLAS DLLs (`cudart64_*`, `cublas64_*`, `cublasLt64_*`) and CUDA license files so they run without a separately installed CUDA Toolkit.
 
 ## Git workflow
 
