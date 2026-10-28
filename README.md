@@ -1,6 +1,6 @@
 # llama.cpp Windows GPU Builder
 
-NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。CUDAでは`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10系のWindowsネイティブビルドとランタイム同梱ZIPの提供を重視し、ROCmのpeer copyは既定で有効にします（無効化も選択可能です）。
+NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。ROCm 10系のWindowsネイティブビルドとランタイム同梱ZIPの提供を重視しています。CUDA・ROCmともpeer copyは既定で有効にします（`GGML_CUDA_NO_PEER_COPY=ON`による無効化も選択可能です）。
 
 `llama.cpp`のソースコードはGit submoduleとして特定のコミットに固定しています。GitHub Actionsは使い捨てのWindows runner上にツールチェーンを準備し、バイナリをビルドしてZIP形式のArtifactをアップロードします。ローカルで隔離されたビルド環境が必要な場合は、Windows VMまたはWindows Sandboxを利用できます。WSL/DockerのCUDA・ROCmコンテナで生成されるのはLinuxバイナリであり、Windowsネイティブバイナリではありません。
 
@@ -22,7 +22,7 @@ git submodule update --init --recursive
 GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**を開き、ビルド対象を選択します。
 
 - `all`: CUDA、選択したROCmターゲット、およびVulkanをビルド
-- `cuda`: ワークフローに設定されたCUDAバージョンをビルド
+- `cuda`: ワークフローに設定されたCUDAバージョンをビルド。`cuda_peer_copy`でpeer copyの有効/無効を選択可能
 - `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド。`rocm_peer_copy`でpeer copyの有効/無効を選択可能
 - `vulkan`: ワークフローに設定されたVulkan SDKで、GPUメーカー共通のVulkan版をビルド
 
@@ -36,7 +36,7 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 `llama_tag`は任意です。指定した種類とタグ形式が一致しない場合や、`latest-branch`を選択してタグも入力した場合は、ビルドを開始せずエラーになります。
 
-ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。ROCm版はpeer copy設定も`peer-copy`または`no-peer-copy`としてArtifact名に含めます。
+ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。CUDA版とROCm版はpeer copy設定も`peer-copy`または`no-peer-copy`としてArtifact名に含めます。
 
 ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub Actionsのキャッシュへ保存します。同じROCmバージョン、GPUターゲット、peer copy設定、`llama.cpp`コミット、およびビルド設定で再実行した場合、SDKのダウンロード・展開と変更のないソースの再コンパイルを省略します。バージョンやビルド設定が変わるとキャッシュキーも変わるため、古い生成物は使用されません。
 
@@ -80,6 +80,12 @@ Developer PowerShell for Visual Studioから実行します。
 
 ```powershell
 .\scripts\Build-Cuda.ps1 -CudaArchitectures 86,89
+```
+
+peer copyは既定で有効です。無効化したビルドが必要な場合は`-PeerCopy disabled`を指定します。
+
+```powershell
+.\scripts\Build-Cuda.ps1 -PeerCopy disabled
 ```
 
 ## ローカルでのROCmビルド
@@ -152,7 +158,7 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 | ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-CUDAは13系の最新である13.4をデフォルトとし、従来の12.4も選択できます。13.4では`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION=v3.4.3`を指定してCCCLを取得します。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。
+CUDAは13系の最新である13.4をデフォルトとし、従来の12.4も選択できます。13.4では`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION=v3.4.3`を指定してCCCLを取得します。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。`cuda_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずGPU間のpeer copyを利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。マザーボードやドライバーの構成によってはマルチGPU時にpeer copyで問題が起きる場合があるため、その際は`disabled`を選択してください。
 
 ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
 
@@ -184,7 +190,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 ## ローカルビルドのパッケージ化
 
 ```powershell
-.\scripts\Package-Build.ps1 -BuildDir .\build-cuda -Name llama-win-x64-cuda-no-peer-copy
+.\scripts\Package-Build.ps1 -BuildDir .\build-cuda -Name llama-win-x64-cuda-peer-copy
 ```
 
 ## llama.cppの更新

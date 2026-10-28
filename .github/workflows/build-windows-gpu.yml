@@ -49,6 +49,14 @@ on:
           - gfx1151
           - gfx1200
           - gfx1201
+      cuda_peer_copy:
+        description: CUDA peer copy support (enabled omits GGML_CUDA_NO_PEER_COPY)
+        required: true
+        default: enabled
+        type: choice
+        options:
+          - disabled
+          - enabled
       rocm_peer_copy:
         description: ROCm peer copy support (enabled omits GGML_CUDA_NO_PEER_COPY)
         required: true
@@ -93,6 +101,8 @@ permissions:
 # 5. Run the corresponding backend manually and verify its DLL and ZIP artifact.
 env:
   CUDA_VERSION: ${{ inputs.cuda_version }}
+  CUDA_PEER_COPY: ${{ inputs.cuda_peer_copy }}
+  CUDA_PEER_COPY_SUFFIX: ${{ inputs.cuda_peer_copy == 'enabled' && 'peer-copy' || 'no-peer-copy' }}
   ROCM_VERSION: ${{ inputs.rocm_version }}
   # ROCm 10 stable moved to the new TheRock aggregate index; 7.14 remains legacy.
   ROCM_INDEX_URL: ${{ startsWith(inputs.rocm_version, '10.') && 'https://stable.repo.amd.com/rocm/whl-next/' || 'https://repo.amd.com/rocm/whl-multi-arch/' }}
@@ -169,20 +179,21 @@ jobs:
         shell: pwsh
         run: choco install ninja -y --no-progress
 
-      - name: Build CUDA with peer copy disabled
+      - name: Build CUDA (peer copy ${{ env.CUDA_PEER_COPY }})
         shell: cmd
         env:
           # Match upstream llama.cpp release builds: CUDA 13.4 pins CCCL v3.4.3 via FetchContent.
           # CTK >= 13.5 bundles CCCL >= 3.5, so the pin can be dropped for those versions.
           CUDA_EXTRA_DEFINES: ${{ inputs.cuda_version == '13.4' && '-DGGML_CUDA_CCCL_VERSION=v3.4.3' || '' }}
+          # Peer copy is enabled by default; disabled adds GGML_CUDA_NO_PEER_COPY=ON for compatibility testing.
+          CUDA_PEER_COPY_DEFINES: ${{ inputs.cuda_peer_copy == 'disabled' && '-DGGML_CUDA_NO_PEER_COPY=ON' || '' }}
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           cmake -S vendor/llama.cpp -B build-cuda -G "Ninja Multi-Config" ^
             -DGGML_CUDA=ON ^
-            -DGGML_CUDA_NO_PEER_COPY=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_EXTRA_DEFINES%
+            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_PEER_COPY_DEFINES% %CUDA_EXTRA_DEFINES%
           cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify CUDA backend
@@ -194,12 +205,12 @@ jobs:
 
       - name: Create CUDA package
         shell: pwsh
-        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-no-peer-copy"
+        run: ./scripts/Package-Build.ps1 -BuildDir ./build-cuda -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-${env:CUDA_PEER_COPY_SUFFIX}"
 
       - name: Upload CUDA package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: llama-${{ env.LLAMA_REF }}-win-x64-cuda-${{ env.CUDA_VERSION }}-no-peer-copy
+          name: llama-${{ env.LLAMA_REF }}-win-x64-cuda-${{ env.CUDA_VERSION }}-${{ env.CUDA_PEER_COPY_SUFFIX }}
           path: dist/*.zip
           if-no-files-found: error
 
@@ -518,8 +529,8 @@ jobs:
 
           case "$SELECTED_BACKEND" in
             cuda)
-              release_title="llama-${LLAMA_REF}-win-x64-cuda-${CUDA_VERSION}-no-peer-copy"
-              release_notes="Windows x64 CUDA ${CUDA_VERSION} binaries built from llama.cpp ${LLAMA_REF}. Peer copy is disabled."
+              release_title="llama-${LLAMA_REF}-win-x64-cuda-${CUDA_VERSION}-${CUDA_PEER_COPY_SUFFIX}"
+              release_notes="Windows x64 CUDA ${CUDA_VERSION} binaries built from llama.cpp ${LLAMA_REF}. Peer copy is ${CUDA_PEER_COPY}."
               ;;
             rocm)
               if [[ "$ROCM_PEER_COPY" == "enabled" ]]; then
@@ -543,7 +554,7 @@ jobs:
                 rocm_peer_copy_note="ROCm peer copy is disabled."
               fi
               release_title="llama-${LLAMA_REF}-win-x64-gpu-cuda-${CUDA_VERSION}-rocm-${ROCM_VERSION}-${ROCM_TARGET}-vulkan-${VULKAN_VERSION}"
-              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (peer copy disabled); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. ${rocm_peer_copy_note}"
+              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (peer copy ${CUDA_PEER_COPY}); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. ${rocm_peer_copy_note}"
               ;;
             *)
               echo "Unsupported backend for Release metadata: $SELECTED_BACKEND" >&2
