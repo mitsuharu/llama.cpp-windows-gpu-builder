@@ -16,10 +16,11 @@ on:
       cuda_version:
         description: CUDA Toolkit version (used by CUDA/all)
         required: true
-        default: '12.4'
+        default: '13.4'
         type: choice
         options:
           - '12.4'
+          - '13.4'
       rocm_version:
         description: ROCm version (used by ROCm/all)
         required: true
@@ -151,12 +152,29 @@ jobs:
           cuda_version: ${{ env.CUDA_VERSION }}
           cuda_arch: x64
 
+      - name: Verify CUDA Toolkit
+        shell: pwsh
+        run: |
+          # windows-setup-cuda silently skips unsupported versions, so fail early here.
+          if (-not $env:CUDA_PATH -or -not (Test-Path (Join-Path $env:CUDA_PATH 'bin/nvcc.exe'))) {
+            throw "CUDA Toolkit ${env:CUDA_VERSION} was not installed. Check that the selected llama.cpp revision's windows-setup-cuda action supports it."
+          }
+          $nvccVersion = & (Join-Path $env:CUDA_PATH 'bin/nvcc.exe') --version | Out-String
+          Write-Host $nvccVersion
+          if ($nvccVersion -notmatch "release $([regex]::Escape($env:CUDA_VERSION))") {
+            throw "nvcc does not report CUDA ${env:CUDA_VERSION}."
+          }
+
       - name: Install Ninja
         shell: pwsh
         run: choco install ninja -y --no-progress
 
       - name: Build CUDA with peer copy disabled
         shell: cmd
+        env:
+          # Match upstream llama.cpp release builds: CUDA 13.4 pins CCCL v3.4.3 via FetchContent.
+          # CTK >= 13.5 bundles CCCL >= 3.5, so the pin can be dropped for those versions.
+          CUDA_EXTRA_DEFINES: ${{ inputs.cuda_version == '13.4' && '-DGGML_CUDA_CCCL_VERSION=v3.4.3' || '' }}
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           cmake -S vendor/llama.cpp -B build-cuda -G "Ninja Multi-Config" ^
@@ -164,7 +182,7 @@ jobs:
             -DGGML_CUDA_NO_PEER_COPY=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON
+            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_EXTRA_DEFINES%
           cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify CUDA backend
