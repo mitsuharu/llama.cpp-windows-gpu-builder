@@ -88,6 +88,20 @@ peer copyは既定で有効です。無効化したビルドが必要な場合�
 .\scripts\Build-Cuda.ps1 -PeerCopy disabled
 ```
 
+### CUDA版ZIPの実行時DLL
+
+`ggml-cuda.dll`はCUDA RuntimeとcuBLASに依存します。CUDA版ZIPには、ビルドに使ったCUDA Toolkitから次のDLLを同梱し、実行ファイルと同じフォルダーに配置します。そのため、実行PCにCUDA Toolkitをインストールしたり、PATHを設定したりする必要はありません。NVIDIAドライバーは別途必要です。
+
+- `cudart64_<メジャーバージョン>.dll`
+- `cublas64_<メジャーバージョン>.dll`
+- `cublasLt64_<メジャーバージョン>.dll`
+
+CUDA ToolkitのライセンスファイルはZIP内の`licenses\cuda`に含めます。GPUが認識されているかは、次のコマンドで確認できます。
+
+```powershell
+.\llama-cli.exe --list-devices
+```
+
 ## ローカルでのROCmビルド
 
 必要な環境は、CMake、GNU Make、およびAMDのWindows ROCm/HIP SDK（またはTheRock ROCm wheel）です。ツールチェーンを有効化し、`HIP_PATH`がそのルートディレクトリを指していることを確認してから実行します。
@@ -190,8 +204,10 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 ## ローカルビルドのパッケージ化
 
 ```powershell
-.\scripts\Package-Build.ps1 -BuildDir .\build-cuda -Name llama-win-x64-cuda-peer-copy
+.\scripts\Package-CudaBuild.ps1 -BuildDir .\build-cuda -Name llama-win-x64-cuda-peer-copy
 ```
+
+`Package-CudaBuild.ps1`は`CUDA_PATH`のCUDA Toolkitから実行時DLLとライセンスを同梱します。別のToolkitを使う場合は`-CudaRoot`で指定します。
 
 ## llama.cppの更新
 
