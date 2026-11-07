@@ -104,7 +104,7 @@ CUDA ToolkitのライセンスファイルはZIP内の`licenses\cuda`に含め�
 
 ## ローカルでのROCmビルド
 
-必要な環境は、CMake、GNU Make、およびAMDのWindows ROCm/HIP SDK（またはTheRock ROCm wheel）です。ツールチェーンを有効化し、`HIP_PATH`がそのルートディレクトリを指していることを確認してから実行します。
+必要な環境は、CMake、GNU Make、Windows SDK、およびAMDのWindows ROCm/HIP SDK（またはTheRock ROCm wheel）です。llama.cpp v0.9.0以降はすべてのexeにアプリケーションマニフェストを埋め込むため、リンク時にWindows SDKの`mt.exe`が必要です。`Build-Rocm.ps1`はインストール済みのWindows SDKから`mt.exe`を探してPATHに追加します。ツールチェーンを有効化し、`HIP_PATH`がそのルートディレクトリを指していることを確認してから実行します。
 
 ```powershell
 .\scripts\Build-Rocm.ps1 -GpuTarget gfx1201
@@ -211,7 +211,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 
 ## llama.cppの更新
 
-更新スクリプトは、引数を指定しない場合に`v0.8.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
+更新スクリプトは、引数を指定しない場合に`v0.9.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
 
 ```powershell
 .\scripts\Update-LlamaCpp.ps1
@@ -220,7 +220,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 特定の安定版リリースを使用する場合は、[llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases)に掲載されている`vX.Y.Z`形式のタグを`-Release`で指定します。
 
 ```powershell
-.\scripts\Update-LlamaCpp.ps1 -Release v0.8.0
+.\scripts\Update-LlamaCpp.ps1 -Release v0.9.0
 ```
 
 `b10603`のようなnightly/dev版を使用する場合は、安定版と区別するため`-Nightly`で指定します。

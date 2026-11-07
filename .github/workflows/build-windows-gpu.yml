@@ -304,12 +304,17 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build-rocm
-          key: windows-2022-rocm-build-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-peer-copy-${{ env.ROCM_PEER_COPY }}-${{ steps.llama-source.outputs.ref }}-${{ hashFiles('.github/workflows/build-windows-gpu.yml', 'scripts/Build-Rocm.ps1') }}
+          key: windows-2022-rocm-build-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-peer-copy-${{ env.ROCM_PEER_COPY }}-${{ steps.llama-source.outputs.ref }}-${{ hashFiles('.github/workflows/build-windows-gpu.yml', 'scripts/Build-Rocm.ps1', 'scripts/Find-WindowsSdkMt.ps1') }}
 
       - name: Build ROCm
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # llama.cpp v0.9.0+ embeds an app manifest in every exe; lld-link needs mt.exe
+          # from the Windows SDK because this step does not run in a VS developer shell.
+          $mtDir = ./scripts/Find-WindowsSdkMt.ps1
+          Write-Host "Using mt.exe from $mtDir"
+          $env:PATH = "$mtDir;$env:PATH"
           $cmakeArgs = @(
             '-S', 'vendor/llama.cpp',
             '-B', 'build-rocm',
