@@ -104,7 +104,7 @@ CUDA ToolkitのライセンスファイルはZIP内の`licenses\cuda`に含め�
 
 ## ローカルでのROCmビルド
 
-必要な環境は、CMake、GNU Make、およびAMDのWindows ROCm/HIP SDK（またはTheRock ROCm wheel）です。ツールチェーンを有効化し、`HIP_PATH`がそのルートディレクトリを指していることを確認してから実行します。
+必要な環境は、CMake、GNU Make、Windows SDK、およびAMDのWindows ROCm/HIP SDK（またはTheRock ROCm wheel）です。llama.cpp v0.9.0以降はすべてのexeにアプリケーションマニフェストを埋め込むため、リンク時にWindows SDKの`mt.exe`が必要です。`Build-Rocm.ps1`はインストール済みのWindows SDKから`mt.exe`を探してPATHに追加します。ツールチェーンを有効化し、`HIP_PATH`がそのルートディレクトリを指していることを確認してから実行します。
 
 ```powershell
 .\scripts\Build-Rocm.ps1 -GpuTarget gfx1201

@@ -25,6 +25,10 @@ if (-not (Test-Path $clang) -or -not (Test-Path $clangxx)) {
     throw "ROCm clang was not found below HIP_PATH '$env:HIP_PATH'."
 }
 
+# llama.cpp v0.9.0+ embeds an app manifest in every exe; lld-link needs mt.exe on PATH.
+$mtDir = & (Join-Path $PSScriptRoot 'Find-WindowsSdkMt.ps1')
+$env:PATH = "$mtDir;$env:PATH"
+
 & cmake -S $source -B $build -G 'Unix Makefiles' `
     -DCMAKE_BUILD_TYPE=Release `
     "-DCMAKE_PREFIX_PATH=$env:HIP_PATH" `
