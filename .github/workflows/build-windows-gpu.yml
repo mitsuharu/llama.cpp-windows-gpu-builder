@@ -208,7 +208,7 @@ jobs:
         run: ./scripts/Package-CudaBuild.ps1 -BuildDir ./build-cuda -CudaRoot $env:CUDA_PATH -Name "llama-${env:LLAMA_REF}-win-x64-cuda-${env:CUDA_VERSION}-${env:CUDA_PEER_COPY_SUFFIX}"
 
       - name: Upload CUDA package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: llama-${{ env.LLAMA_REF }}-win-x64-cuda-${{ env.CUDA_VERSION }}-${{ env.CUDA_PEER_COPY_SUFFIX }}
           path: dist/*.zip
@@ -381,7 +381,7 @@ jobs:
           if ($missing) { throw "Bundled ROCm package verification failed: $($missing -join ', ')" }
 
       - name: Upload ROCm package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: llama-${{ env.LLAMA_REF }}-win-x64-rocm-${{ env.ROCM_VERSION }}-${{ env.GPU_TARGET }}-${{ env.ROCM_PEER_COPY == 'enabled' && 'peer-copy' || 'no-peer-copy' }}
           path: dist/*.zip
@@ -474,7 +474,7 @@ jobs:
         run: ./scripts/Package-Build.ps1 -BuildDir ./build-vulkan -Name "llama-${env:LLAMA_REF}-win-x64-vulkan-${env:VULKAN_VERSION}"
 
       - name: Upload Vulkan package
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: llama-${{ env.LLAMA_REF }}-win-x64-vulkan-${{ env.VULKAN_VERSION }}
           path: dist/*.zip
