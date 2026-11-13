@@ -168,11 +168,11 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 
 | ツールチェーン | 選択肢 | デフォルト |
 |---|---|---|
-| CUDA | `12.4`、`13.4` | `13.4` |
+| CUDA | `12.4`、`13.5` | `13.5` |
 | ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 
-CUDAは13系の最新である13.4をデフォルトとし、従来の12.4も選択できます。13.4では`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION=v3.4.3`を指定してCCCLを取得します。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。`cuda_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずGPU間のpeer copyを利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。マザーボードやドライバーの構成によってはマルチGPU時にpeer copyで問題が起きる場合があるため、その際は`disabled`を選択してください。
+CUDAは13系の最新である13.5をデフォルトとし、従来の12.4も選択できます。13.5はCUDA Toolkitに同梱されたCCCLを使うため、`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION`は指定しません。llama.cpp v1.0.0以降の`windows-setup-cuda`はCUDA 13.4に対応しないため、13.4は選択肢から外しています。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。`cuda_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずGPU間のpeer copyを利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。マザーボードやドライバーの構成によってはマルチGPU時にpeer copyで問題が起きる場合があるため、その際は`disabled`を選択してください。
 
 ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
 
@@ -211,7 +211,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 
 ## llama.cppの更新
 
-更新スクリプトは、引数を指定しない場合に`v0.9.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
+更新スクリプトは、引数を指定しない場合に`v1.0.0`のような安定版リリースタグを公式リポジトリから取得し、Semantic Versionが最も新しいリリースへ更新します。`b10603`のような`b`タグはnightly/dev版のため、デフォルトでは選択しません。
 
 ```powershell
 .\scripts\Update-LlamaCpp.ps1
@@ -220,7 +220,7 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 特定の安定版リリースを使用する場合は、[llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases)に掲載されている`vX.Y.Z`形式のタグを`-Release`で指定します。
 
 ```powershell
-.\scripts\Update-LlamaCpp.ps1 -Release v0.9.0
+.\scripts\Update-LlamaCpp.ps1 -Release v1.0.0
 ```
 
 `b10603`のようなnightly/dev版を使用する場合は、安定版と区別するため`-Nightly`で指定します。

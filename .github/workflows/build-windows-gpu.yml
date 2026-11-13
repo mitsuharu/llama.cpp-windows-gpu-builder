@@ -16,11 +16,11 @@ on:
       cuda_version:
         description: CUDA Toolkit version (used by CUDA/all)
         required: true
-        default: '13.4'
+        default: '13.5'
         type: choice
         options:
           - '12.4'
-          - '13.4'
+          - '13.5'
       rocm_version:
         description: ROCm version (used by ROCm/all)
         required: true
@@ -182,9 +182,6 @@ jobs:
       - name: Build CUDA (peer copy ${{ env.CUDA_PEER_COPY }})
         shell: cmd
         env:
-          # Match upstream llama.cpp release builds: CUDA 13.4 pins CCCL v3.4.3 via FetchContent.
-          # CTK >= 13.5 bundles CCCL >= 3.5, so the pin can be dropped for those versions.
-          CUDA_EXTRA_DEFINES: ${{ inputs.cuda_version == '13.4' && '-DGGML_CUDA_CCCL_VERSION=v3.4.3' || '' }}
           # Peer copy is enabled by default; disabled adds GGML_CUDA_NO_PEER_COPY=ON for compatibility testing.
           CUDA_PEER_COPY_DEFINES: ${{ inputs.cuda_peer_copy == 'disabled' && '-DGGML_CUDA_NO_PEER_COPY=ON' || '' }}
         run: |
@@ -193,7 +190,7 @@ jobs:
             -DGGML_CUDA=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_PEER_COPY_DEFINES% %CUDA_EXTRA_DEFINES%
+            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_PEER_COPY_DEFINES%
           cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify CUDA backend
