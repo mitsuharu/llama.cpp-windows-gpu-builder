@@ -1,6 +1,6 @@
 # llama.cpp Windows GPU Builder
 
-NVIDIA CUDA、AMD ROCm/HIP、およびVulkanに対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。ROCm 10系のWindowsネイティブビルドとランタイム同梱ZIPの提供を重視しています。CUDA・ROCmともpeer copyは既定で有効にします（`GGML_CUDA_NO_PEER_COPY=ON`による無効化も選択可能です）。
+NVIDIA CUDA、AMD ROCm/HIP、Vulkan、およびIntel GPU向けSYCL（oneAPI）に対応した、[`llama.cpp`](https://github.com/ggml-org/llama.cpp)の再現可能なWindows x64ビルド環境です。ROCm 10系のWindowsネイティブビルドとランタイム同梱ZIPの提供を重視しています。CUDA・ROCmともpeer copyは既定で有効にします（`GGML_CUDA_NO_PEER_COPY=ON`による無効化も選択可能です）。
 
 `llama.cpp`のソースコードはGit submoduleとして特定のコミットに固定しています。GitHub Actionsは使い捨てのWindows runner上にツールチェーンを準備し、バイナリをビルドしてZIP形式のArtifactをアップロードします。ローカルで隔離されたビルド環境が必要な場合は、Windows VMまたはWindows Sandboxを利用できます。WSL/DockerのCUDA・ROCmコンテナで生成されるのはLinuxバイナリであり、Windowsネイティブバイナリではありません。
 
@@ -21,10 +21,11 @@ git submodule update --init --recursive
 
 GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**を開き、ビルド対象を選択します。
 
-- `all`: CUDA、選択したROCmターゲット、およびVulkanをビルド
+- `all`: CUDA、選択したROCmターゲット、Vulkan、およびSYCLをビルド
 - `cuda`: ワークフローに設定されたCUDAバージョンをビルド。`cuda_peer_copy`でpeer copyの有効/無効を選択可能
 - `rocm`: ワークフローに設定されたROCmバージョンを、選択した`gfx`ターゲット向けにビルド。`rocm_peer_copy`でpeer copyの有効/無効を選択可能
 - `vulkan`: ワークフローに設定されたVulkan SDKで、GPUメーカー共通のVulkan版をビルド
+- `sycl`: 選択したIntel oneAPIで、Intel Arcなどに向けたSYCL版をビルド。`sycl_precision`で`fp32`/`fp16`を選択可能
 
 `llama_source`では、使用する`llama.cpp`の種類を選択します。
 
@@ -36,7 +37,7 @@ GitHubリポジトリで**Actions > Build Windows GPU binaries > Run workflow**�
 
 `llama_tag`は任意です。指定した種類とタグ形式が一致しない場合や、`latest-branch`を選択してタグも入力した場合は、ビルドを開始せずエラーになります。
 
-ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。CUDA版とROCm版はpeer copy設定も`peer-copy`または`no-peer-copy`としてArtifact名に含めます。
+ビルド結果は、ワークフロー実行画面からArtifactとしてダウンロードできます。Artifact名には、実際に使用した`llama.cpp`タグまたは`master-<コミットSHA>`が含まれます。CUDA版とROCm版はpeer copy設定も`peer-copy`または`no-peer-copy`としてArtifact名に含めます。SYCL版はoneAPIバージョンと精度（`fp32`または`fp16`）をArtifact名に含めます。
 
 ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub Actionsのキャッシュへ保存します。同じROCmバージョン、GPUターゲット、peer copy設定、`llama.cpp`コミット、およびビルド設定で再実行した場合、SDKのダウンロード・展開と変更のないソースの再コンパイルを省略します。バージョンやビルド設定が変わるとキャッシュキーも変わるため、古い生成物は使用されません。
 
@@ -45,7 +46,7 @@ ROCmジョブでは、TheRock SDKとCMakeのビルドディレクトリをGitHub
 手動ビルドでは`publish_release`がデフォルトで有効になっており、成功したZIPを[Releases](https://github.com/mitsuharu/llama.cpp-windows-gpu-builder/releases)にも添付します。Artifactだけが必要な場合は、実行時に`publish_release`を無効にしてください。Pull Request用の軽量CIなど、`workflow_dispatch`以外の実行からReleaseを作成することはありません。
 
 - `release_tag`が空欄の場合は、`build-<llama.cppバージョン>-<実行番号>.<再実行番号>`形式の重複しないタグを生成します。
-- 新しいReleaseのタイトルには、選択したバックエンド、ツールチェーンのバージョン、およびROCm版では`gfx`ターゲットを含めます。`all`の場合は3バックエンドの情報をまとめて表示します。
+- 新しいReleaseのタイトルには、選択したバックエンド、ツールチェーンのバージョン、およびROCm版では`gfx`ターゲットを含めます。`all`の場合は4バックエンドの情報をまとめて表示します。
 - `release_tag`を指定し、そのReleaseが存在しない場合は、新しいReleaseを作成します。
 - 指定したReleaseがすでに存在する場合は、そのReleaseへZIPを追加します。同名Assetがすでに存在する場合は上書きせずエラーになります。
 - 複数のバックエンドをビルドした場合は、成功した各ZIPを同じReleaseへ添付します。
@@ -162,19 +163,38 @@ ROCm版ZIPには、同梱ランタイムを確認してPATHを一時設定する
 .\build-vulkan\bin\Release\llama-cli.exe -m C:\models\model.gguf -ngl 99
 ```
 
+## ローカルでのSYCLビルド
+
+必要な環境は、**C++によるデスクトップ開発**を含むVisual Studio 2022 Build Tools、CMake、Ninja、および[Intel oneAPI](https://www.intel.com/content/www/us/en/developer/tools/oneapi/overview.html)（DPC++/C++ Compiler、oneMKL、oneTBB、oneDNN）です。スタートメニューの**Intel oneAPI command prompt for Intel 64 for Visual Studio 2022**を開き、リポジトリのディレクトリで実行します。
+
+```bat
+pwsh -File .\scripts\Build-Sycl.ps1
+```
+
+`-Precision fp16`を指定すると`GGML_SYCL_F16=ON`でビルドします。モデルによってはプロンプト処理が速くなるため、`fp32`と比較して選んでください。実行にはIntel GPUドライバーが必要です。
+
+```powershell
+.\build-sycl\bin\llama-cli.exe --list-devices
+```
+
+ローカルビルドのZIPには`Package-SyclBuild.ps1`を使用します。`ONEAPI_ROOT`のoneAPIから、`llama.cpp`公式のWindows SYCLリリースと同じ実行時DLL（DPC++ランタイム、oneMKL、oneDNN、oneTBBなど）とライセンスを同梱します。
+
 ## ツールチェーンのバージョン選択と更新
 
-手動実行画面では、バックエンドに続いてCUDA、ROCm、Vulkan SDKのバージョンを選択できます。`all`を選んだ場合は、3つの選択値がそれぞれのジョブに使われます。
+手動実行画面では、バックエンドに続いてCUDA、ROCm、Vulkan SDK、Intel oneAPIのバージョンを選択できます。`all`を選んだ場合は、4つの選択値がそれぞれのジョブに使われます。
 
 | ツールチェーン | 選択肢 | デフォルト |
 |---|---|---|
 | CUDA | `12.4`、`13.4` | `13.4` |
 | ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
+| Intel oneAPI | `2026.2` | `2026.2` |
 
 CUDAは13系の最新である13.4をデフォルトとし、従来の12.4も選択できます。13.4では`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION=v3.4.3`を指定してCCCLを取得します。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。`cuda_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずGPU間のpeer copyを利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。マザーボードやドライバーの構成によってはマルチGPU時にpeer copyで問題が起きる場合があるため、その際は`disabled`を選択してください。
 
 ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
+
+SYCLのoneAPIは、`llama.cpp`公式のWindows SYCLリリースと同じ2026.2（Deep Learning Essentials、oneDNN、Level Zero SDK 1.34.0）を使用します。`sycl_precision`は`fp32`（既定、公式リリースと同じ）と`fp16`（`GGML_SYCL_F16=ON`）を選択できます。SYCLジョブはoneAPIのインストールに時間がかかるため、他のバックエンドより実行時間が長くなります。
 
 `.github/workflows/build-windows-gpu.yml`のトップレベル`env`は、手動実行時の入力を各ジョブへ共有します。
 
@@ -183,6 +203,7 @@ env:
   CUDA_VERSION: ${{ inputs.cuda_version }}
   ROCM_VERSION: ${{ inputs.rocm_version }}
   VULKAN_VERSION: ${{ inputs.vulkan_version }}
+  ONEAPI_VERSION: ${{ inputs.oneapi_version }}
 ```
 
 ツールチェーンを更新する場合は、次の手順を実施します。
@@ -191,13 +212,14 @@ env:
 2. CUDAの場合は、`vendor/llama.cpp/.github/actions/windows-setup-cuda/action.yml`に新しいバージョンのインストール処理が存在することを確認します。必要であれば、先に`llama.cpp` submoduleを更新します。
 3. ROCmの場合は、7.14系ならAMDの従来の`rocm/whl-multi-arch`、10系以降ならTheRockの`stable.repo.amd.com/rocm/whl-next`パッケージインデックスで対象バージョンが公開されていることを確認します。
 4. Vulkanの場合は、LunarGのWindows SDKダウンロードページで対象バージョンが公開されていることを確認します。
-5. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。ROCm版では依存DLL、`rocblas\library`、ライセンスもZIPに含まれることを確認します。
+5. oneAPIの場合は、SYCLジョブの「Resolve oneAPI installers」ステップへ、インストーラーURLとLevel Zero SDKのバージョンを追加します。値は`vendor/llama.cpp/.github/workflows/release.yml`の`windows-sycl`ジョブに合わせます。
+6. GitHub Actionsから変更したバックエンドだけを実行し、バックエンドDLLとバージョン付きZIP Artifactが生成されることを確認します。ROCm版では依存DLL、`rocblas\library`、ライセンスもZIPに含まれることを確認します。
 
 各ジョブ内に同じバージョン値を重複して定義しないでください。セットアップ処理、キャッシュキー、Artifact名は、トップレベルの共有変数を自動的に参照します。
 
 ## Pull Requestの軽量チェック
 
-Pull Requestを作成または更新すると、`.github/workflows/ci.yml`がPowerShellスクリプトの構文検査とWindows x64向けCPUコアライブラリの最小ビルドを実行します。CUDA・ROCm・Vulkan SDKの取得、GPUバックエンドのコンパイル、ZIP作成、Artifactアップロードは行わないため、通常の機能追加PRを比較的短時間で確認できます。新しいコミットがpushされた場合は古い実行をキャンセルします。
+Pull Requestを作成または更新すると、`.github/workflows/ci.yml`がPowerShellスクリプトの構文検査とWindows x64向けCPUコアライブラリの最小ビルドを実行します。CUDA・ROCm・Vulkan SDK・oneAPIの取得、GPUバックエンドのコンパイル、ZIP作成、Artifactアップロードは行わないため、通常の機能追加PRを比較的短時間で確認できます。新しいコミットがpushされた場合は古い実行をキャンセルします。
 
 GPU固有のコードや配布処理を変更した場合は、マージ前に**Actions > Build Windows GPU binaries > Run workflow**から該当バックエンドを手動実行してください。
 
@@ -208,6 +230,12 @@ GPU固有のコードや配布処理を変更した場合は、マージ前に**
 ```
 
 `Package-CudaBuild.ps1`は`CUDA_PATH`のCUDA Toolkitから実行時DLLとライセンスを同梱します。別のToolkitを使う場合は`-CudaRoot`で指定します。
+
+```powershell
+.\scripts\Package-SyclBuild.ps1 -BuildDir .\build-sycl -Name llama-win-x64-sycl-fp32
+```
+
+`Package-SyclBuild.ps1`は`ONEAPI_ROOT`のoneAPIから実行時DLLとライセンスを同梱します。別のインストール先を使う場合は`-OneApiRoot`で指定します。
 
 ## llama.cppの更新
 

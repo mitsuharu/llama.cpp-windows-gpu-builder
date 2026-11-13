@@ -2,10 +2,11 @@
 
 ## Purpose
 
-- This repository builds reproducible Windows x64 `llama.cpp` packages for CUDA, ROCm, and Vulkan.
+- This repository builds reproducible Windows x64 `llama.cpp` packages for CUDA, ROCm, Vulkan, and SYCL (Intel oneAPI).
 - CUDA and ROCm builds default to peer copy enabled (ROCm 10.1+ for ROCm). Keep the selectable `disabled` mode, which sets `GGML_CUDA_NO_PEER_COPY=ON`, for compatibility and regression testing.
 - ROCm release ZIPs must be self-contained enough to run without a separately installed ROCm SDK.
 - CUDA release ZIPs must bundle the CUDA runtime and cuBLAS DLLs (`cudart64_*`, `cublas64_*`, `cublasLt64_*`) and CUDA license files so they run without a separately installed CUDA Toolkit.
+- SYCL release ZIPs must bundle the oneAPI runtime DLLs used by the upstream `windows-sycl` release job (DPC++ runtime, oneMKL, oneDNN, oneTBB, and their dependencies) and oneAPI license files so they run with only the Intel GPU driver installed.
 
 ## Git workflow
 
@@ -39,6 +40,7 @@
 
 - Include the selected `llama.cpp` reference and backend toolchain version in ZIP artifact names.
 - Include the ROCm version and `gfx` target in ROCm artifact and Release names.
+- Include the oneAPI version and SYCL precision (`fp32` or `fp16`) in SYCL artifact and Release names.
 - Include the peer copy setting (`peer-copy` or `no-peer-copy`) in CUDA and ROCm artifact names and Release metadata.
 - Keep Release titles and notes aligned with the actual uploaded ZIPs.
 
