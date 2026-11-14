@@ -116,7 +116,10 @@ jobs:
   cuda:
     if: inputs.backend == 'all' || inputs.backend == 'cuda'
     runs-on: windows-2022
-    timeout-minutes: 120
+    # llama.cpp v1.0.0 + CUDA 13.5 compiles ~150 CUDA objects for 7 architectures and
+    # takes over 2 hours on windows-2022 without a compiler cache. Keep a wide margin
+    # below the 6-hour limit of GitHub-hosted runners.
+    timeout-minutes: 300
     outputs:
       llama_ref: ${{ steps.llama-source.outputs.ref }}
     steps:
@@ -494,7 +497,10 @@ jobs:
       (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.vulkan.result == 'success') &&
       needs.cuda.result != 'failure' &&
       needs.rocm.result != 'failure' &&
-      needs.vulkan.result != 'failure'
+      needs.vulkan.result != 'failure' &&
+      needs.cuda.result != 'cancelled' &&
+      needs.rocm.result != 'cancelled' &&
+      needs.vulkan.result != 'cancelled'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
