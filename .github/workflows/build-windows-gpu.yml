@@ -24,12 +24,13 @@ on:
       rocm_version:
         description: ROCm version (used by ROCm/all)
         required: true
-        default: '10.1.0'
+        default: '10.2.0'
         type: choice
         options:
           - '7.14.0'
           - '10.0.0'
           - '10.1.0'
+          - '10.2.0'
       vulkan_version:
         description: Vulkan SDK version (used by Vulkan/all)
         required: true
