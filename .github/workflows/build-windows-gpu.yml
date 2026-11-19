@@ -156,6 +156,17 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
+          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
+          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
+          # which does not exist, and the "latest" fallback may not match the pinned source.
+          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
+          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
+            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          }
+          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
 
       - name: Set up CUDA
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-cuda
@@ -260,6 +271,17 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
+          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
+          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
+          # which does not exist, and the "latest" fallback may not match the pinned source.
+          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
+          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
+            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          }
+          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
 
       - name: Resolve ROCm cache context
         id: rocm-cache-context
@@ -430,6 +452,17 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
+          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
+          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
+          # which does not exist, and the "latest" fallback may not match the pinned source.
+          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
+          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
+            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
+            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          }
+          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
 
       - name: Install Vulkan SDK
         shell: pwsh
