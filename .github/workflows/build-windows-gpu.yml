@@ -13,6 +13,7 @@ on:
           - cuda
           - rocm
           - vulkan
+          - sycl
       cuda_version:
         description: CUDA Toolkit version (used by CUDA/all)
         required: true
@@ -37,6 +38,21 @@ on:
         type: choice
         options:
           - '1.4.357.0'
+      oneapi_version:
+        description: Intel oneAPI version (used by SYCL/all)
+        required: true
+        default: '2026.2'
+        type: choice
+        options:
+          - '2026.2'
+      sycl_precision:
+        description: SYCL floating point precision (fp16 adds GGML_SYCL_F16=ON)
+        required: true
+        default: fp32
+        type: choice
+        options:
+          - fp32
+          - fp16
       rocm_target:
         description: AMD GPU target (used by ROCm/all)
         required: true
@@ -98,7 +114,9 @@ permissions:
 # 2. CUDA: verify vendor/llama.cpp/.github/actions/windows-setup-cuda supports it.
 # 3. ROCm: verify the version in the legacy 7.14 or stable 10+ package index.
 # 4. Vulkan: verify the version exists at https://vulkan.lunarg.com/sdk/home#windows.
-# 5. Run the corresponding backend manually and verify its DLL and ZIP artifact.
+# 5. oneAPI: add the installer URLs to the "Resolve oneAPI installers" step of the sycl job.
+#    Use the values from vendor/llama.cpp/.github/workflows/release.yml (windows-sycl).
+# 6. Run the corresponding backend manually and verify its DLL and ZIP artifact.
 env:
   CUDA_VERSION: ${{ inputs.cuda_version }}
   CUDA_PEER_COPY: ${{ inputs.cuda_peer_copy }}
@@ -107,6 +125,8 @@ env:
   # ROCm 10 stable moved to the new TheRock aggregate index; 7.14 remains legacy.
   ROCM_INDEX_URL: ${{ startsWith(inputs.rocm_version, '10.') && 'https://stable.repo.amd.com/rocm/whl-next/' || 'https://repo.amd.com/rocm/whl-multi-arch/' }}
   VULKAN_VERSION: ${{ inputs.vulkan_version }}
+  ONEAPI_VERSION: ${{ inputs.oneapi_version }}
+  SYCL_PRECISION: ${{ inputs.sycl_precision }}
 
 concurrency:
   group: windows-gpu-${{ github.ref }}
@@ -480,9 +500,143 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  sycl:
+    if: inputs.backend == 'all' || inputs.backend == 'sycl'
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      ONEAPI_ROOT: C:\Program Files (x86)\Intel\oneAPI
+    outputs:
+      llama_ref: ${{ steps.llama-source.outputs.ref }}
+    steps:
+      - name: Checkout with pinned llama.cpp
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Select llama.cpp source
+        id: llama-source
+        shell: pwsh
+        env:
+          LLAMA_SOURCE: ${{ inputs.llama_source }}
+          LLAMA_TAG: ${{ inputs.llama_tag }}
+        run: |
+          $tag = $env:LLAMA_TAG.Trim()
+          switch ($env:LLAMA_SOURCE) {
+            'release' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Release $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 }
+            }
+            'nightly' {
+              if ($tag) { ./scripts/Update-LlamaCpp.ps1 -Nightly $tag }
+              else { ./scripts/Update-LlamaCpp.ps1 -LatestNightly }
+            }
+            'latest-branch' {
+              if ($tag) { throw 'llama_tag must be empty when latest-branch is selected.' }
+              ./scripts/Update-LlamaCpp.ps1 -LatestBranch
+            }
+            default { throw "Unsupported llama_source: $env:LLAMA_SOURCE" }
+          }
+          $selectedRef = git -C vendor/llama.cpp describe --tags --exact-match HEAD 2>$null
+          if (-not $selectedRef) {
+            $shortSha = git -C vendor/llama.cpp rev-parse --short=12 HEAD
+            $selectedRef = "master-$shortSha"
+          }
+          "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
+          "ref=$selectedRef" >> $env:GITHUB_OUTPUT
+
+      - name: Resolve oneAPI installers
+        shell: pwsh
+        run: |
+          # Keep these values in sync with the windows-sycl job in
+          # vendor/llama.cpp/.github/workflows/release.yml for the same oneAPI version.
+          switch ($env:ONEAPI_VERSION) {
+            '2026.2' {
+              $dle = 'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b177a006-5cd9-4cb2-807f-8199cc73d53c/intel-deep-learning-essentials-2026.2.0.638_offline.exe'
+              $onednn = 'https://registrationcenter-download.intel.com/akdlm/IRC_NAS/8f905666-c85c-43fb-9bd0-2618c7ecd33b/intel-onednn-2026.1.0.622_offline.exe'
+              $levelZero = '1.34.0'
+            }
+            default { throw "Unsupported oneAPI version: $env:ONEAPI_VERSION" }
+          }
+          "ONEAPI_DLE_URL=$dle" >> $env:GITHUB_ENV
+          "ONEAPI_ONEDNN_URL=$onednn" >> $env:GITHUB_ENV
+          "LEVEL_ZERO_SDK_VERSION=$levelZero" >> $env:GITHUB_ENV
+
+      - name: Install oneAPI
+        shell: cmd
+        run: |
+          call vendor\llama.cpp\scripts\install-oneapi.bat "%ONEAPI_DLE_URL%" intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel:intel.oneapi.win.tbb.devel
+          if errorlevel 1 exit /b 1
+          call vendor\llama.cpp\scripts\install-oneapi.bat "%ONEAPI_ONEDNN_URL%" intel.oneapi.win.dnnl
+          if errorlevel 1 exit /b 1
+          if not exist "%ONEAPI_ROOT%\setvars.bat" (
+            echo oneAPI setvars.bat was not installed.
+            exit /b 1
+          )
+
+      - name: Install Level Zero SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'level-zero-win-sdk.zip'
+          $url = "https://github.com/oneapi-src/level-zero/releases/download/v${env:LEVEL_ZERO_SDK_VERSION}/level-zero-win-sdk-${env:LEVEL_ZERO_SDK_VERSION}.zip"
+          curl.exe -fL -o $zip $url
+          if ($LASTEXITCODE -ne 0) { throw "Level Zero SDK download failed: $LASTEXITCODE" }
+          Expand-Archive -Path $zip -DestinationPath 'C:\level-zero-sdk' -Force
+          'LEVEL_ZERO_V1_SDK_PATH=C:\level-zero-sdk' >> $env:GITHUB_ENV
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
+      - name: Build SYCL (${{ env.SYCL_PRECISION }})
+        shell: cmd
+        env:
+          # fp16 enables GGML_SYCL_F16; fp32 matches the upstream llama.cpp release build.
+          SYCL_PRECISION_DEFINES: ${{ inputs.sycl_precision == 'fp16' && '-DGGML_SYCL_F16=ON' || '' }}
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          call "%ONEAPI_ROOT%\setvars.bat" intel64 --force
+          if errorlevel 1 exit /b 1
+          cmake -S vendor/llama.cpp -B build-sycl -G "Ninja" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER=cl ^
+            -DCMAKE_CXX_COMPILER=icx ^
+            -DGGML_SYCL=ON ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_BACKEND_DL=ON ^
+            -DLLAMA_BUILD_BORINGSSL=ON %SYCL_PRECISION_DEFINES%
+          if errorlevel 1 exit /b 1
+          cmake --build build-sycl -j %NUMBER_OF_PROCESSORS%
+
+      - name: Verify SYCL backend
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'build-sycl/bin/ggml-sycl.dll')) {
+            throw 'ggml-sycl.dll was not produced.'
+          }
+          if (-not (Select-String -Path 'build-sycl/CMakeCache.txt' -Pattern '^GGML_SYCL:BOOL=ON$')) {
+            throw 'GGML_SYCL=ON was not recorded in CMakeCache.txt.'
+          }
+          $f16 = [bool](Select-String -Path 'build-sycl/CMakeCache.txt' -Pattern '^GGML_SYCL_F16:BOOL=ON$')
+          if ($f16 -ne ($env:SYCL_PRECISION -eq 'fp16')) {
+            throw "GGML_SYCL_F16 does not match the selected precision ($env:SYCL_PRECISION)."
+          }
+
+      - name: Create SYCL package
+        shell: pwsh
+        run: ./scripts/Package-SyclBuild.ps1 -BuildDir ./build-sycl -OneApiRoot $env:ONEAPI_ROOT -LevelZeroSdkRoot $env:LEVEL_ZERO_V1_SDK_PATH -Name "llama-${env:LLAMA_REF}-win-x64-sycl-oneapi-${env:ONEAPI_VERSION}-${env:SYCL_PRECISION}"
+
+      - name: Upload SYCL package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: llama-${{ env.LLAMA_REF }}-win-x64-sycl-oneapi-${{ env.ONEAPI_VERSION }}-${{ env.SYCL_PRECISION }}
+          path: dist/*.zip
+          if-no-files-found: error
+
   release:
     name: Publish GitHub Release
-    needs: [cuda, rocm, vulkan]
+    needs: [cuda, rocm, vulkan, sycl]
     # Keep publishing limited to manual runs for now. If automatic llama.cpp
     # release detection is added later, extend this condition with an explicit
     # `new_release == true` output instead of allowing every scheduled run.
@@ -494,17 +648,18 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       inputs.publish_release &&
       !cancelled() &&
-      (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.vulkan.result == 'success') &&
+      (needs.cuda.result == 'success' || needs.rocm.result == 'success' || needs.vulkan.result == 'success' || needs.sycl.result == 'success') &&
       needs.cuda.result != 'failure' &&
       needs.rocm.result != 'failure' &&
-      needs.vulkan.result != 'failure'
+      needs.vulkan.result != 'failure' &&
+      needs.sycl.result != 'failure'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref || needs.vulkan.outputs.llama_ref }}
+      LLAMA_REF: ${{ needs.cuda.outputs.llama_ref || needs.rocm.outputs.llama_ref || needs.vulkan.outputs.llama_ref || needs.sycl.outputs.llama_ref }}
       REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
       SELECTED_BACKEND: ${{ inputs.backend }}
       ROCM_TARGET: ${{ inputs.rocm_target }}
@@ -552,14 +707,18 @@ jobs:
               release_title="llama-${LLAMA_REF}-win-x64-vulkan-${VULKAN_VERSION}"
               release_notes="Windows x64 Vulkan SDK ${VULKAN_VERSION} binaries built from llama.cpp ${LLAMA_REF}."
               ;;
+            sycl)
+              release_title="llama-${LLAMA_REF}-win-x64-sycl-oneapi-${ONEAPI_VERSION}-${SYCL_PRECISION}"
+              release_notes="Windows x64 SYCL (Intel oneAPI ${ONEAPI_VERSION}, ${SYCL_PRECISION}) binaries built from llama.cpp ${LLAMA_REF}. The oneAPI runtime DLLs are bundled."
+              ;;
             all)
               if [[ "$ROCM_PEER_COPY" == "enabled" ]]; then
                 rocm_peer_copy_note="ROCm peer copy is enabled."
               else
                 rocm_peer_copy_note="ROCm peer copy is disabled."
               fi
-              release_title="llama-${LLAMA_REF}-win-x64-gpu-cuda-${CUDA_VERSION}-rocm-${ROCM_VERSION}-${ROCM_TARGET}-vulkan-${VULKAN_VERSION}"
-              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (runtime bundled, peer copy ${CUDA_PEER_COPY}); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}. ${rocm_peer_copy_note}"
+              release_title="llama-${LLAMA_REF}-win-x64-gpu-cuda-${CUDA_VERSION}-rocm-${ROCM_VERSION}-${ROCM_TARGET}-vulkan-${VULKAN_VERSION}-sycl-oneapi-${ONEAPI_VERSION}-${SYCL_PRECISION}"
+              release_notes="Windows x64 GPU binaries built from llama.cpp ${LLAMA_REF}. CUDA ${CUDA_VERSION} (runtime bundled, peer copy ${CUDA_PEER_COPY}); ROCm ${ROCM_VERSION} (${ROCM_TARGET}, runtime and device kernels bundled); Vulkan SDK ${VULKAN_VERSION}; SYCL with Intel oneAPI ${ONEAPI_VERSION} (${SYCL_PRECISION}, runtime bundled). ${rocm_peer_copy_note}"
               ;;
             *)
               echo "Unsupported backend for Release metadata: $SELECTED_BACKEND" >&2
