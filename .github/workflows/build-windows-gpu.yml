@@ -156,17 +156,22 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
-          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
-          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
-          # which does not exist, and the "latest" fallback may not match the pinned source.
-          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
-          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
-            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
-            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
-            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
-          }
-          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          # llama.cpp derives LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and uses it to
+          # fetch the matching prebuilt UI (b<number>) from Hugging Face. The shallow submodule
+          # yields b1, which does not exist, and the "latest" fallback may not match the pinned
+          # source. Count the history in a separate commit-only bare repository so the submodule
+          # checkout stays untouched, then pass the number to CMake and the UI download.
+          $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+          $historyRepo = Join-Path $env:RUNNER_TEMP 'llama-history.git'
+          git init --quiet --bare $historyRepo
+          if ($LASTEXITCODE -ne 0) { throw "git init failed: $LASTEXITCODE" }
+          git -C $historyRepo fetch --quiet --filter=tree:0 --no-tags https://github.com/ggml-org/llama.cpp.git $llamaCommit
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          $buildNumber = (git -C $historyRepo rev-list --count $llamaCommit).Trim()
+          if ($LASTEXITCODE -ne 0 -or $buildNumber -notmatch '^[0-9]+$') { throw "Failed to count llama.cpp history: '$buildNumber'" }
           Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
+          "LLAMA_BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          "HF_UI_VERSION=b$buildNumber" >> $env:GITHUB_ENV
 
       - name: Set up CUDA
         uses: ./vendor/llama.cpp/.github/actions/windows-setup-cuda
@@ -205,7 +210,8 @@ jobs:
             -DGGML_CUDA=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON %CUDA_PEER_COPY_DEFINES% %CUDA_EXTRA_DEFINES%
+            -DLLAMA_BUILD_BORINGSSL=ON ^
+            -DLLAMA_BUILD_NUMBER=%LLAMA_BUILD_NUMBER% %CUDA_PEER_COPY_DEFINES% %CUDA_EXTRA_DEFINES%
           cmake --build build-cuda --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify CUDA backend
@@ -271,17 +277,22 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
-          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
-          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
-          # which does not exist, and the "latest" fallback may not match the pinned source.
-          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
-          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
-            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
-            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
-            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
-          }
-          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          # llama.cpp derives LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and uses it to
+          # fetch the matching prebuilt UI (b<number>) from Hugging Face. The shallow submodule
+          # yields b1, which does not exist, and the "latest" fallback may not match the pinned
+          # source. Count the history in a separate commit-only bare repository so the submodule
+          # checkout stays untouched, then pass the number to CMake and the UI download.
+          $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+          $historyRepo = Join-Path $env:RUNNER_TEMP 'llama-history.git'
+          git init --quiet --bare $historyRepo
+          if ($LASTEXITCODE -ne 0) { throw "git init failed: $LASTEXITCODE" }
+          git -C $historyRepo fetch --quiet --filter=tree:0 --no-tags https://github.com/ggml-org/llama.cpp.git $llamaCommit
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          $buildNumber = (git -C $historyRepo rev-list --count $llamaCommit).Trim()
+          if ($LASTEXITCODE -ne 0 -or $buildNumber -notmatch '^[0-9]+$') { throw "Failed to count llama.cpp history: '$buildNumber'" }
           Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
+          "LLAMA_BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          "HF_UI_VERSION=b$buildNumber" >> $env:GITHUB_ENV
 
       - name: Resolve ROCm cache context
         id: rocm-cache-context
@@ -353,6 +364,7 @@ jobs:
             '-DGGML_NATIVE=OFF',
             '-DGGML_BACKEND_DL=ON',
             '-DLLAMA_BUILD_BORINGSSL=ON',
+            "-DLLAMA_BUILD_NUMBER=${env:LLAMA_BUILD_NUMBER}",
             "-DAMDGPU_TARGETS=${env:GPU_TARGET}"
           )
           if ($env:ROCM_PEER_COPY -eq 'disabled') {
@@ -452,17 +464,22 @@ jobs:
           }
           "LLAMA_REF=$selectedRef" >> $env:GITHUB_ENV
           "ref=$selectedRef" >> $env:GITHUB_OUTPUT
-          # llama.cpp sets LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and fetches the
-          # matching prebuilt UI (b<number>) from Hugging Face. A shallow submodule yields b1,
-          # which does not exist, and the "latest" fallback may not match the pinned source.
-          # Fetch commit history only (no trees/blobs) so the build number matches upstream.
-          if ((git -C vendor/llama.cpp rev-parse --is-shallow-repository) -eq 'true') {
-            $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
-            git -C vendor/llama.cpp fetch --filter=tree:0 --unshallow --no-tags origin $llamaCommit
-            if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
-          }
-          $buildNumber = (git -C vendor/llama.cpp rev-list --count HEAD).Trim()
+          # llama.cpp derives LLAMA_BUILD_NUMBER from `git rev-list --count HEAD` and uses it to
+          # fetch the matching prebuilt UI (b<number>) from Hugging Face. The shallow submodule
+          # yields b1, which does not exist, and the "latest" fallback may not match the pinned
+          # source. Count the history in a separate commit-only bare repository so the submodule
+          # checkout stays untouched, then pass the number to CMake and the UI download.
+          $llamaCommit = (git -C vendor/llama.cpp rev-parse HEAD).Trim()
+          $historyRepo = Join-Path $env:RUNNER_TEMP 'llama-history.git'
+          git init --quiet --bare $historyRepo
+          if ($LASTEXITCODE -ne 0) { throw "git init failed: $LASTEXITCODE" }
+          git -C $historyRepo fetch --quiet --filter=tree:0 --no-tags https://github.com/ggml-org/llama.cpp.git $llamaCommit
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch llama.cpp history: $LASTEXITCODE" }
+          $buildNumber = (git -C $historyRepo rev-list --count $llamaCommit).Trim()
+          if ($LASTEXITCODE -ne 0 -or $buildNumber -notmatch '^[0-9]+$') { throw "Failed to count llama.cpp history: '$buildNumber'" }
           Write-Host "llama.cpp build number: $buildNumber (UI version b$buildNumber)"
+          "LLAMA_BUILD_NUMBER=$buildNumber" >> $env:GITHUB_ENV
+          "HF_UI_VERSION=b$buildNumber" >> $env:GITHUB_ENV
 
       - name: Install Vulkan SDK
         shell: pwsh
@@ -490,7 +507,8 @@ jobs:
             -DGGML_VULKAN=ON ^
             -DGGML_NATIVE=OFF ^
             -DGGML_BACKEND_DL=ON ^
-            -DLLAMA_BUILD_BORINGSSL=ON
+            -DLLAMA_BUILD_BORINGSSL=ON ^
+            -DLLAMA_BUILD_NUMBER=%LLAMA_BUILD_NUMBER%
           cmake --build build-vulkan --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Verify Vulkan backend
