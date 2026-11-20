@@ -186,13 +186,13 @@ pwsh -File .\scripts\Build-Sycl.ps1
 | ツールチェーン | 選択肢 | デフォルト |
 |---|---|---|
 | CUDA | `12.4`、`13.5` | `13.5` |
-| ROCm | `7.14.0`、`10.0.0`、`10.1.0` | `10.1.0` |
+| ROCm | `7.14.0`、`10.0.0`、`10.1.0`、`10.2.0` | `10.2.0` |
 | Vulkan SDK | `1.4.357.0` | `1.4.357.0` |
 | Intel oneAPI | `2026.2` | `2026.2` |
 
 CUDAは13系の最新である13.5をデフォルトとし、従来の12.4も選択できます。13.5はCUDA Toolkitに同梱されたCCCLを使うため、`llama.cpp`公式リリースと同様に`GGML_CUDA_CCCL_VERSION`は指定しません。llama.cpp v1.0.0以降の`windows-setup-cuda`はCUDA 13.4に対応しないため、13.4は選択肢から外しています。CUDA 13系のバイナリはMaxwell・Pascal・Volta世代のGPUに対応しないため、これらのGPUでは12.4を選択してください。また、実行環境にはCUDA 13に対応したNVIDIAドライバーが必要です。`cuda_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずGPU間のpeer copyを利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。マザーボードやドライバーの構成によってはマルチGPU時にpeer copyで問題が起きる場合があるため、その際は`disabled`を選択してください。
 
-ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.1.0をデフォルトとし、10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
+ROCmは安定して利用してきた7系と、新しい10系を選べます。7.14系は従来のmulti-arch wheelインデックス、10系は新しいTheRock stableインデックスから取得します。ROCm 10.2.0をデフォルトとし、10.1.0・10.0.0も互換性確認や切り戻し用に選択できます。`rocm_peer_copy`は`enabled`（既定）と`disabled`を選択できます。`enabled`では`GGML_CUDA_NO_PEER_COPY`を指定せずROCm/HIPのpeer copy実装を利用し、`disabled`では`GGML_CUDA_NO_PEER_COPY=ON`を指定します。ROCm 10.1.0 + Radeon AI PRO R9700 2枚の環境で`enabled`の動作を確認していますが、すべてのGPUや旧ROCmでの動作を保証するものではありません。選択した値はキャッシュキー、ZIP Artifact名、Release情報へ引き継がれるため、異なる設定の成果物は混在しません。
 
 SYCLのoneAPIは、`llama.cpp`公式のWindows SYCLリリースと同じ2026.2（Deep Learning Essentials、oneDNN、Level Zero SDK 1.34.0）を使用します。`sycl_precision`は`fp32`（既定、公式リリースと同じ）と`fp16`（`GGML_SYCL_F16=ON`）を選択できます。SYCLジョブはoneAPIのインストールに時間がかかるため、他のバックエンドより実行時間が長くなります。
 
